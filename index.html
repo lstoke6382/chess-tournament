@@ -81,15 +81,29 @@
   .setup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 600px) { .setup-row { grid-template-columns: 1fr; } }
 
+  /* Format-specific setup notes */
+  .format-note { background: rgba(233,69,96,0.1); border-left: 3px solid var(--accent); padding: 10px 14px; margin-top: 10px; font-size: 0.85rem; color: var(--text-dim); border-radius: 0 var(--radius) var(--radius) 0; }
+
   /* Tournament View */
   .tourney-header { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
   .tourney-header h2 { flex: 1; min-width: 200px; font-size: 1.4rem; }
   .code-badge { background: var(--secondary); padding: 6px 14px; border-radius: 20px; font-family: monospace; font-size: 1rem; letter-spacing: 3px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
   .code-badge:hover { background: #13386b; }
+  .time-control-badge { background: var(--secondary); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .time-control-badge .tc-icon { font-size: 1rem; }
   .role-badge { padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; }
   .role-director { background: var(--accent); color: #fff; }
   .role-spectator { background: var(--secondary); color: var(--text-dim); }
   .copied-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--success); color: #fff; padding: 10px 20px; border-radius: var(--radius); font-weight: 600; z-index: 999; animation: fadeIn 0.2s ease; }
+
+  /* Round info bar */
+  .round-info-bar { background: var(--secondary); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .round-info-bar .round-label { font-weight: 700; font-size: 1.1rem; }
+  .round-info-bar .round-detail { color: var(--text-dim); font-size: 0.9rem; }
+
+  /* Generate next round button */
+  .generate-round-btn { width: 100%; padding: 16px; font-size: 1.1rem; margin-bottom: 20px; background: linear-gradient(135deg, var(--accent), #d63a52); color: #fff; border: none; border-radius: var(--radius); cursor: pointer; font-weight: 700; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(233,69,96,0.4); } 50% { box-shadow: 0 0 0 12px rgba(233,69,96,0); } }
 
   /* Tabs */
   .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; background: rgba(0,0,0,0.2); border-radius: var(--radius); padding: 4px; }
@@ -112,6 +126,22 @@
   .board-actions { display: flex; gap: 6px; }
   .board-actions button { flex: 1; font-size: 0.85rem; padding: 10px 6px; }
   .board-idle { text-align: center; color: var(--text-dim); padding: 20px; font-style: italic; }
+
+  /* Bracket View (Single Elimination) */
+  .bracket-container { margin-bottom: 24px; }
+  .bracket-round { margin-bottom: 24px; }
+  .bracket-round-title { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .bracket-match { background: var(--card); border: 2px solid var(--secondary); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
+  .bracket-match.bye-match { opacity: 0.5; border-style: dashed; }
+  .bracket-match-players { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bracket-match-player { flex: 1; padding: 8px 12px; border-radius: 8px; font-weight: 600; background: var(--secondary); font-size: 0.95rem; }
+  .bracket-match-player.winner { background: rgba(39,174,96,0.3); border: 1px solid var(--success); }
+  .bracket-match-player.loser { opacity: 0.5; text-decoration: line-through; }
+  .bracket-match-player.tbd { color: var(--text-dim); font-style: italic; }
+  .bracket-match-vs { font-weight: 700; color: var(--text-dim); font-size: 0.85rem; }
+  .bracket-match-actions { display: flex; gap: 6px; }
+  .bracket-match-actions button { flex: 1; font-size: 0.85rem; padding: 10px 6px; }
+  .bracket-match-result { text-align: center; font-weight: 700; font-size: 0.9rem; padding: 6px; border-radius: 8px; }
 
   /* Standings Table */
   .standings-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -168,6 +198,8 @@
     .home-title { font-size: 1.5rem; }
     .board-actions { flex-direction: column; }
     .board-actions button { width: 100%; }
+    .bracket-match-actions { flex-direction: column; }
+    .bracket-match-actions button { width: 100%; }
     .setup-row { grid-template-columns: 1fr; }
     .preview-box { flex-direction: column; gap: 12px; }
     table { font-size: 0.85rem; }
@@ -181,7 +213,7 @@
   <!-- VIEW: HOME -->
   <div id="viewHome" class="view active">
     <h1 class="home-title">&#9812; Chess Tournament &#9819;</h1>
-    <p class="home-subtitle">Round Robin Tournament Tracker</p>
+    <p class="home-subtitle">Tournament Tracker</p>
     <div class="home-actions">
       <div class="home-section">
         <button class="btn-primary" style="width:100%;font-size:1.1rem;padding:16px;" onclick="showView('setup')">
@@ -212,6 +244,10 @@
         <input type="text" id="tourneyName" placeholder="e.g. Spring Championship 2026" maxlength="60">
       </div>
       <div class="field-group">
+        <label>Time Control</label>
+        <input type="text" id="timeControl" placeholder="e.g. G/15+10, 5|0 Blitz" maxlength="40">
+      </div>
+      <div class="field-group">
         <label>Players</label>
         <div id="playerList"></div>
         <button class="btn-small btn-secondary mt-8" onclick="addPlayerField()">+ Add Player</button>
@@ -227,9 +263,21 @@
           <div class="radio-group" style="margin-top:8px;">
             <label><input type="radio" name="format" value="single" checked> Single Round Robin</label>
             <label><input type="radio" name="format" value="double"> Double Round Robin</label>
+            <label><input type="radio" name="format" value="swiss"> Swiss System</label>
+            <label><input type="radio" name="format" value="elimination"> Single Elimination</label>
           </div>
         </div>
       </div>
+
+      <!-- Swiss-specific: Number of Rounds -->
+      <div class="field-group" id="swissRoundsGroup" style="display:none;">
+        <label>Number of Swiss Rounds</label>
+        <select id="swissRounds"></select>
+      </div>
+
+      <!-- Elimination note -->
+      <div id="eliminationNote" class="format-note" style="display:none;"></div>
+
       <div class="preview-box" id="previewBox">
         <div class="preview-item"><div class="num" id="prevPlayers">4</div><div class="lbl">Players</div></div>
         <div class="preview-item"><div class="num" id="prevRounds">3</div><div class="lbl">Rounds</div></div>
@@ -251,6 +299,10 @@
         <span id="tCode">------</span>
         <span style="font-size:0.8rem;">&#128203;</span>
       </span>
+      <span class="time-control-badge" id="timeControlBadge" style="display:none;">
+        <span class="tc-icon">&#9201;</span>
+        <span id="tTimeControl"></span>
+      </span>
       <span class="role-badge" id="roleBadge">Director</span>
       <button class="btn-small btn-outline" onclick="leaveTournament()">&#8592; Home</button>
     </div>
@@ -258,6 +310,18 @@
       <h2>&#127942; Tournament Complete!</h2>
       <p>All games have been played. See the final standings below.</p>
     </div>
+
+    <!-- Swiss / Elimination round info bar -->
+    <div id="roundInfoBar" class="round-info-bar" style="display:none;">
+      <span class="round-label" id="roundInfoLabel"></span>
+      <span class="round-detail" id="roundInfoDetail"></span>
+    </div>
+
+    <!-- Generate Next Round button (Swiss) -->
+    <div id="generateNextRoundWrap" style="display:none;">
+      <button class="generate-round-btn" onclick="generateNextSwissRound()">&#9654; Generate Next Round Pairings</button>
+    </div>
+
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('boards',this)">&#9816; Boards</button>
       <button class="tab-btn" onclick="switchTab('standings',this)">&#127942; Standings</button>
@@ -267,6 +331,8 @@
     <!-- Tab: Boards -->
     <div id="tabBoards" class="tab-panel active">
       <div class="boards-grid" id="boardsGrid"></div>
+      <!-- Bracket container for elimination tournaments -->
+      <div class="bracket-container" id="bracketContainer" style="display:none;"></div>
     </div>
 
     <!-- Tab: Standings -->
@@ -307,8 +373,6 @@
 // =====================================================
 // FIREBASE CONFIGURATION
 // =====================================================
-// TODO: Replace with your Firebase project config
-// Go to Firebase Console > Project Settings > Your Apps > Web App
 const firebaseConfig = {
   apiKey: "AIzaSyDEAlg-51b4I4Z9xdci6453j_MKWWjj5pc",
   authDomain: "chesstournamentdotcom.firebaseapp.com",
@@ -380,8 +444,19 @@ function initSetup() {
     opt.value = i; opt.textContent = i + (i === 1 ? ' Board' : ' Boards');
     sel.appendChild(opt);
   }
+  // Swiss rounds dropdown
+  const swissSel = document.getElementById('swissRounds');
+  swissSel.innerHTML = '';
+  for (let i = 1; i <= 10; i++) {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = i + (i === 1 ? ' Round' : ' Rounds');
+    if (i === 5) opt.selected = true;
+    swissSel.appendChild(opt);
+  }
   document.getElementById('tourneyName').value = '';
+  document.getElementById('timeControl').value = '';
   document.getElementById('setupError').style.display = 'none';
+  updateFormatUI();
   updatePreview();
 }
 
@@ -426,26 +501,66 @@ function getFormat() {
   return document.querySelector('input[name="format"]:checked').value;
 }
 
+function updateFormatUI() {
+  const fmt = getFormat();
+  // Show/hide Swiss rounds selector
+  document.getElementById('swissRoundsGroup').style.display = fmt === 'swiss' ? 'block' : 'none';
+  // Show/hide elimination note
+  const elimNote = document.getElementById('eliminationNote');
+  if (fmt === 'elimination') {
+    const n = playerFields.length;
+    let bracketSize = 1;
+    while (bracketSize < n) bracketSize *= 2;
+    const byes = bracketSize - n;
+    if (byes > 0) {
+      elimNote.textContent = `Bracket size: ${bracketSize}. ${byes} player${byes > 1 ? 's' : ''} will receive a first-round bye.`;
+    } else {
+      elimNote.textContent = `Perfect bracket: ${bracketSize} players, no byes needed.`;
+    }
+    elimNote.style.display = 'block';
+  } else {
+    elimNote.style.display = 'none';
+  }
+}
+
 function updatePreview() {
   const n = playerFields.length;
   const fmt = getFormat();
-  const isDouble = fmt === 'double';
-  const effectiveN = n % 2 === 0 ? n : n + 1;
-  const rounds = (effectiveN - 1) * (isDouble ? 2 : 1);
-  const gamesPerRound = n % 2 === 0 ? n / 2 : (n - 1) / 2;
-  const totalGames = (n * (n - 1) / 2) * (isDouble ? 2 : 1);
   const boards = parseInt(document.getElementById('boardCount').value) || 1;
+
+  let rounds, totalGames;
+
+  if (fmt === 'single' || fmt === 'double') {
+    const isDouble = fmt === 'double';
+    const effectiveN = n % 2 === 0 ? n : n + 1;
+    rounds = (effectiveN - 1) * (isDouble ? 2 : 1);
+    totalGames = (n * (n - 1) / 2) * (isDouble ? 2 : 1);
+  } else if (fmt === 'swiss') {
+    rounds = parseInt(document.getElementById('swissRounds').value) || 5;
+    // Each round has floor(n/2) games
+    totalGames = rounds * Math.floor(n / 2);
+  } else if (fmt === 'elimination') {
+    let bracketSize = 1;
+    while (bracketSize < n) bracketSize *= 2;
+    rounds = Math.log2(bracketSize);
+    // Total games = bracketSize - 1 (but some are byes that don't need playing)
+    totalGames = n - 1; // actual games played (each elimination removes 1 player)
+  }
+
   document.getElementById('prevPlayers').textContent = n;
   document.getElementById('prevRounds').textContent = rounds;
   document.getElementById('prevGames').textContent = totalGames;
   document.getElementById('prevBoards').textContent = boards;
+
+  updateFormatUI();
 }
 
 document.querySelectorAll('input[name="format"]').forEach(r => r.addEventListener('change', updatePreview));
 document.getElementById('boardCount').addEventListener('change', updatePreview);
+document.getElementById('swissRounds').addEventListener('change', updatePreview);
 
 // =====================================================
-// SCHEDULING (Berger Table)
+// SCHEDULING (Berger Table) - Round Robin
 // =====================================================
 function generateSchedule(playerCount, isDouble) {
   let n = playerCount;
@@ -465,7 +580,7 @@ function generateSchedule(playerCount, isDouble) {
     }
     for (let i = 1; i < gamesPerRound; i++) {
       const home = circle[i];
-      const away = circle[n - 2 - i];
+      const away = circle[n - 1 - i]; // BUG FIX: was n - 2 - i, causing self-pairings
       if (i % 2 === 0) {
         schedule.push({ white: home, black: away, round });
       } else {
@@ -487,6 +602,151 @@ function generateSchedule(playerCount, isDouble) {
   }
 
   return filtered;
+}
+
+// =====================================================
+// SWISS SYSTEM PAIRING
+// =====================================================
+function generateSwissRound(players, schedule, results, roundNum) {
+  // Compute current standings
+  const standings = computeStandings(players, schedule, results);
+
+  // Track who has played whom
+  const played = {};
+  players.forEach((_, i) => { played[i] = new Set(); });
+  for (const [idx, game] of Object.entries(schedule)) {
+    if (game && game.white !== undefined && game.black !== undefined) {
+      played[game.white].add(game.black);
+      played[game.black].add(game.white);
+    }
+  }
+
+  // Sort by points descending (standings already sorted)
+  const sorted = [...standings];
+  const paired = new Set();
+  const pairings = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (paired.has(sorted[i].index)) continue;
+    const p1 = sorted[i].index;
+
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (paired.has(sorted[j].index)) continue;
+      const p2 = sorted[j].index;
+
+      if (!played[p1].has(p2)) {
+        paired.add(p1);
+        paired.add(p2);
+        // Alternate colors based on round parity
+        if (roundNum % 2 === 0) {
+          pairings.push({ white: p1, black: p2, round: roundNum });
+        } else {
+          pairings.push({ white: p2, black: p1, round: roundNum });
+        }
+        break;
+      }
+    }
+  }
+
+  // Handle bye: unpaired player gets no game (bye is implicit)
+  return pairings;
+}
+
+function generateSwissFirstRound(players, roundNum) {
+  // First round: pair top half vs bottom half
+  const n = players.length;
+  const half = Math.floor(n / 2);
+  const pairings = [];
+
+  for (let i = 0; i < half; i++) {
+    pairings.push({ white: i, black: half + i, round: roundNum });
+  }
+
+  return pairings;
+}
+
+// =====================================================
+// SINGLE ELIMINATION BRACKET
+// =====================================================
+function generateBracket(playerCount) {
+  // Find next power of 2
+  let bracketSize = 1;
+  while (bracketSize < playerCount) bracketSize *= 2;
+
+  const totalRounds = Math.log2(bracketSize);
+  let matchIndex = 0;
+  const bracket = [];
+
+  // Create first round matchups
+  for (let i = 0; i < bracketSize; i += 2) {
+    const p1 = i < playerCount ? i : null;
+    const p2 = i + 1 < playerCount ? i + 1 : null;
+    const winner = (p1 !== null && p2 === null) ? p1 : (p2 !== null && p1 === null) ? p2 : null;
+    bracket.push({
+      round: 0,
+      matchIndex: matchIndex++,
+      player1: p1,
+      player2: p2,
+      winner: winner
+    });
+  }
+
+  // Create placeholder matches for subsequent rounds
+  for (let r = 1; r < totalRounds; r++) {
+    const matchesInRound = bracketSize / Math.pow(2, r + 1);
+    for (let m = 0; m < matchesInRound; m++) {
+      bracket.push({
+        round: r,
+        matchIndex: matchIndex++,
+        player1: null,
+        player2: null,
+        winner: null
+      });
+    }
+  }
+
+  // Advance byes: propagate winners from round 0 byes into round 1
+  advanceBracketByes(bracket, totalRounds, bracketSize);
+
+  return bracket;
+}
+
+function advanceBracketByes(bracket, totalRounds, bracketSize) {
+  // For each round, check if winners need to advance
+  for (let r = 0; r < totalRounds; r++) {
+    const roundMatches = bracket.filter(m => m.round === r);
+    const nextRoundMatches = bracket.filter(m => m.round === r + 1);
+    if (nextRoundMatches.length === 0) break;
+
+    for (let i = 0; i < roundMatches.length; i++) {
+      const match = roundMatches[i];
+      if (match.winner === null) continue;
+
+      // Determine which next-round match this feeds into
+      const nextMatchIdx = Math.floor(i / 2);
+      if (nextMatchIdx >= nextRoundMatches.length) continue;
+      const nextMatch = nextRoundMatches[nextMatchIdx];
+
+      if (i % 2 === 0) {
+        nextMatch.player1 = match.winner;
+      } else {
+        nextMatch.player2 = match.winner;
+      }
+
+      // If both players are set in next match and one is still a bye scenario
+      // (both from byes), auto-advance is not needed since both will be real players
+    }
+  }
+}
+
+function getEliminationRoundName(round, totalRounds) {
+  const remaining = totalRounds - round;
+  if (remaining === 1) return 'Final';
+  if (remaining === 2) return 'Semifinals';
+  if (remaining === 3) return 'Quarterfinals';
+  if (remaining === 4) return 'Round of 16';
+  if (remaining === 5) return 'Round of 32';
+  return `Round ${round + 1}`;
 }
 
 // =====================================================
@@ -521,41 +781,90 @@ async function startTournament() {
 
   const boards = parseInt(document.getElementById('boardCount').value);
   const format = getFormat();
-  const isDouble = format === 'double';
-  const schedule = generateSchedule(players.length, isDouble);
+  const timeControl = document.getElementById('timeControl').value.trim();
 
   const btn = document.getElementById('startBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Creating...';
 
   let code = generateCode();
-  // Check uniqueness (basic)
   const snap = await get(ref(db, 'tournaments/' + code));
   if (snap.exists()) code = generateCode();
 
-  const boardState = {};
-  let nextGameIndex = 0;
-  for (let b = 0; b < boards; b++) {
-    if (nextGameIndex < schedule.length) {
-      boardState[b] = { gameIndex: nextGameIndex };
-      nextGameIndex++;
-    } else {
-      boardState[b] = null;
+  let tourneyData;
+
+  if (format === 'single' || format === 'double') {
+    // Round Robin
+    const isDouble = format === 'double';
+    const schedule = generateSchedule(players.length, isDouble);
+
+    const boardState = {};
+    let nextGameIndex = 0;
+    for (let b = 0; b < boards; b++) {
+      if (nextGameIndex < schedule.length) {
+        boardState[b] = { gameIndex: nextGameIndex };
+        nextGameIndex++;
+      } else {
+        boardState[b] = null;
+      }
     }
+
+    const scheduleObj = {};
+    schedule.forEach((g, i) => { scheduleObj[i] = g; });
+
+    tourneyData = {
+      directorUid: currentUid,
+      config: { name, players, format, boards, timeControl, createdAt: Date.now() },
+      schedule: scheduleObj,
+      results: {},
+      boardState,
+      nextGameIndex,
+      status: 'active'
+    };
+
+  } else if (format === 'swiss') {
+    // Swiss System
+    const totalSwissRounds = parseInt(document.getElementById('swissRounds').value) || 5;
+    const firstRoundPairings = generateSwissFirstRound(players, 0);
+
+    const scheduleObj = {};
+    firstRoundPairings.forEach((g, i) => { scheduleObj[i] = g; });
+
+    const boardState = {};
+    let nextGameIndex = 0;
+    for (let b = 0; b < boards; b++) {
+      if (nextGameIndex < firstRoundPairings.length) {
+        boardState[b] = { gameIndex: nextGameIndex };
+        nextGameIndex++;
+      } else {
+        boardState[b] = null;
+      }
+    }
+
+    tourneyData = {
+      directorUid: currentUid,
+      config: { name, players, format, boards, timeControl, createdAt: Date.now() },
+      schedule: scheduleObj,
+      results: {},
+      boardState,
+      nextGameIndex,
+      swissRound: 0,
+      totalSwissRounds,
+      status: 'active'
+    };
+
+  } else if (format === 'elimination') {
+    // Single Elimination
+    const bracket = generateBracket(players.length);
+
+    tourneyData = {
+      directorUid: currentUid,
+      config: { name, players, format, boards, timeControl, createdAt: Date.now() },
+      bracket,
+      eliminationRound: 0,
+      status: 'active'
+    };
   }
-
-  const scheduleObj = {};
-  schedule.forEach((g, i) => { scheduleObj[i] = g; });
-
-  const tourneyData = {
-    directorUid: currentUid,
-    config: { name, players, format, boards, createdAt: Date.now() },
-    schedule: scheduleObj,
-    results: {},
-    boardState,
-    nextGameIndex,
-    status: 'active'
-  };
 
   try {
     await set(ref(db, 'tournaments/' + code), tourneyData);
@@ -633,12 +942,19 @@ function renderTournament() {
   const d = currentData;
   const cfg = d.config;
   const players = cfg.players;
-  const schedule = d.schedule || {};
-  const results = d.results || {};
-  const boardState = d.boardState || {};
+  const format = cfg.format || 'single';
 
   document.getElementById('tName').textContent = cfg.name;
   document.getElementById('tCode').textContent = currentCode;
+
+  // Time control badge
+  const tcBadge = document.getElementById('timeControlBadge');
+  if (cfg.timeControl) {
+    document.getElementById('tTimeControl').textContent = cfg.timeControl;
+    tcBadge.style.display = 'flex';
+  } else {
+    tcBadge.style.display = 'none';
+  }
 
   const badge = document.getElementById('roleBadge');
   if (isDirector) { badge.textContent = 'Director'; badge.className = 'role-badge role-director'; }
@@ -647,14 +963,79 @@ function renderTournament() {
   const isComplete = d.status === 'complete';
   document.getElementById('completeBanner').style.display = isComplete ? 'block' : 'none';
 
-  // Boards
-  renderBoards(cfg, schedule, results, boardState, players);
-  // Standings
-  renderStandings(players, schedule, results);
-  // Schedule tab
-  renderScheduleTab(players, schedule, results);
+  // Round info bar & generate next round button
+  const roundInfoBar = document.getElementById('roundInfoBar');
+  const generateWrap = document.getElementById('generateNextRoundWrap');
+  generateWrap.style.display = 'none';
+  roundInfoBar.style.display = 'none';
+
+  // Show/hide bracket vs boards
+  const boardsGrid = document.getElementById('boardsGrid');
+  const bracketContainer = document.getElementById('bracketContainer');
+
+  if (format === 'elimination') {
+    // Elimination tournament
+    boardsGrid.style.display = 'none';
+    bracketContainer.style.display = 'block';
+    renderEliminationBracket(d, players);
+    renderEliminationStandings(d, players);
+    renderEliminationSchedule(d, players);
+
+    // Round info
+    if (d.bracket) {
+      const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket);
+      let bracketSize = 1;
+      while (bracketSize < players.length) bracketSize *= 2;
+      const totalRounds = Math.log2(bracketSize);
+      const currentRound = d.eliminationRound || 0;
+      const roundName = getEliminationRoundName(currentRound, totalRounds);
+      roundInfoBar.style.display = 'flex';
+      document.getElementById('roundInfoLabel').textContent = roundName;
+      document.getElementById('roundInfoDetail').textContent = `Round ${currentRound + 1} of ${totalRounds}`;
+    }
+  } else {
+    boardsGrid.style.display = 'grid';
+    bracketContainer.style.display = 'none';
+
+    const schedule = d.schedule || {};
+    const results = d.results || {};
+    const boardState = d.boardState || {};
+
+    if (format === 'swiss') {
+      // Swiss info bar
+      const swissRound = d.swissRound || 0;
+      const totalSwissRounds = d.totalSwissRounds || 5;
+      roundInfoBar.style.display = 'flex';
+      document.getElementById('roundInfoLabel').textContent = `Round ${swissRound + 1} of ${totalSwissRounds}`;
+
+      // Check if all games in current round are complete
+      const currentRoundGames = Object.entries(schedule).filter(([_, g]) => g && g.round === swissRound);
+      const currentRoundComplete = currentRoundGames.length > 0 && currentRoundGames.every(([idx, _]) => results[idx]);
+      const allRoundsPlayed = swissRound >= totalSwissRounds - 1 && currentRoundComplete;
+
+      if (currentRoundComplete && !allRoundsPlayed && isDirector && !isComplete) {
+        generateWrap.style.display = 'block';
+        document.getElementById('roundInfoDetail').textContent = 'All games complete - generate next round!';
+      } else if (allRoundsPlayed) {
+        document.getElementById('roundInfoDetail').textContent = 'All rounds complete';
+      } else {
+        const played = currentRoundGames.filter(([idx, _]) => results[idx]).length;
+        document.getElementById('roundInfoDetail').textContent = `${played} / ${currentRoundGames.length} games complete`;
+      }
+    }
+
+    // Boards
+    renderBoards(cfg, schedule, results, boardState, players);
+    // Standings
+    renderStandings(players, schedule, results);
+    // Schedule tab
+    renderScheduleTab(players, schedule, results);
+  }
 }
 
+// =====================================================
+// RENDER BOARDS (Round Robin & Swiss)
+// =====================================================
 function renderBoards(cfg, schedule, results, boardState, players) {
   const grid = document.getElementById('boardsGrid');
   grid.innerHTML = '';
@@ -703,6 +1084,196 @@ function renderBoards(cfg, schedule, results, boardState, players) {
   });
 }
 
+// =====================================================
+// RENDER ELIMINATION BRACKET
+// =====================================================
+function renderEliminationBracket(d, players) {
+  const container = document.getElementById('bracketContainer');
+  container.innerHTML = '';
+
+  if (!d.bracket) return;
+  const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket);
+
+  let bracketSize = 1;
+  while (bracketSize < players.length) bracketSize *= 2;
+  const totalRounds = Math.log2(bracketSize);
+
+  for (let r = 0; r < totalRounds; r++) {
+    const roundDiv = document.createElement('div');
+    roundDiv.className = 'bracket-round';
+    const roundName = getEliminationRoundName(r, totalRounds);
+    roundDiv.innerHTML = `<div class="bracket-round-title">${roundName}</div>`;
+
+    const roundMatches = bracket.filter(m => m.round === r);
+    roundMatches.forEach(match => {
+      const matchDiv = document.createElement('div');
+      const isBye = match.player1 === null || match.player2 === null;
+      matchDiv.className = 'bracket-match' + (isBye && (match.player1 !== null || match.player2 !== null) ? ' bye-match' : '');
+
+      const p1Name = match.player1 !== null && match.player1 !== undefined ? players[match.player1] : 'TBD';
+      const p2Name = match.player2 !== null && match.player2 !== undefined ? players[match.player2] : 'TBD';
+      const hasWinner = match.winner !== null && match.winner !== undefined;
+
+      let p1Class = 'bracket-match-player';
+      let p2Class = 'bracket-match-player';
+
+      if (match.player1 === null && match.player2 === null) {
+        p1Class += ' tbd'; p2Class += ' tbd';
+      } else if (hasWinner) {
+        if (match.winner === match.player1) { p1Class += ' winner'; p2Class += ' loser'; }
+        else { p2Class += ' winner'; p1Class += ' loser'; }
+      }
+
+      let actionsHtml = '';
+      if (!hasWinner && match.player1 !== null && match.player2 !== null &&
+          match.player1 !== undefined && match.player2 !== undefined && !isBye) {
+        if (isDirector) {
+          actionsHtml = `
+            <div class="bracket-match-actions">
+              <button class="btn-success" data-match="${match.matchIndex}" data-winner="${match.player1}">&#9812; ${esc(p1Name)} Wins</button>
+              <button class="btn-draw" data-match="${match.matchIndex}" data-winner="draw">Draw</button>
+              <button class="btn-danger" data-match="${match.matchIndex}" data-winner="${match.player2}">&#9818; ${esc(p2Name)} Wins</button>
+            </div>`;
+        } else {
+          actionsHtml = `<div class="text-center text-dim" style="font-style:italic;padding:8px 0;">&#9203; In Progress</div>`;
+        }
+      } else if (hasWinner && !isBye) {
+        const winnerName = players[match.winner] || 'Unknown';
+        actionsHtml = `<div class="bracket-match-result" style="background:rgba(39,174,96,0.15);color:var(--success);">Winner: ${esc(winnerName)}</div>`;
+      } else if (isBye && hasWinner) {
+        actionsHtml = `<div class="bracket-match-result" style="color:var(--text-dim);">Bye</div>`;
+      }
+
+      matchDiv.innerHTML = `
+        <div class="bracket-match-players">
+          <div class="${p1Class}">${esc(p1Name)}</div>
+          <div class="bracket-match-vs">vs</div>
+          <div class="${p2Class}">${esc(p2Name)}</div>
+        </div>
+        ${actionsHtml}`;
+
+      roundDiv.appendChild(matchDiv);
+    });
+
+    container.appendChild(roundDiv);
+  }
+
+  // Attach bracket result handlers
+  container.querySelectorAll('.bracket-match-actions button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const matchIdx = parseInt(btn.dataset.match);
+      const winner = btn.dataset.winner;
+      if (winner === 'draw') {
+        // In elimination, draws aren't typical but we allow it - director must pick a winner eventually
+        alert('Draws are not supported in elimination format. Please select a winner.');
+        return;
+      }
+      submitEliminationResult(matchIdx, parseInt(winner));
+    });
+  });
+}
+
+function renderEliminationStandings(d, players) {
+  // For elimination, show a simplified standings: players still in vs eliminated
+  const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket || {});
+  const eliminated = new Set();
+  const wins = {};
+  players.forEach((_, i) => { wins[i] = 0; });
+
+  bracket.forEach(match => {
+    if (match.winner !== null && match.winner !== undefined && match.player1 !== null && match.player2 !== null) {
+      wins[match.winner] = (wins[match.winner] || 0) + 1;
+      const loser = match.winner === match.player1 ? match.player2 : match.player1;
+      if (loser !== null && loser !== undefined) eliminated.add(loser);
+    }
+  });
+
+  const standings = players.map((name, i) => ({
+    index: i, name,
+    points: wins[i] || 0,
+    wins: wins[i] || 0,
+    draws: 0,
+    losses: eliminated.has(i) ? 1 : 0,
+    played: (wins[i] || 0) + (eliminated.has(i) ? 1 : 0),
+    alive: !eliminated.has(i)
+  }));
+
+  standings.sort((a, b) => {
+    if (a.alive !== b.alive) return a.alive ? -1 : 1;
+    return b.wins - a.wins;
+  });
+
+  const body = document.getElementById('standingsBody');
+  body.innerHTML = '';
+  standings.forEach((s, i) => {
+    const tr = document.createElement('tr');
+    const status = s.alive ? '' : ' (Eliminated)';
+    tr.innerHTML = `<td>${i + 1}</td><td>${esc(s.name)}${status}</td><td class="pts-cell">${s.wins}</td><td>${s.wins}</td><td>${s.draws}</td><td>${s.losses}</td><td>${s.played}</td>`;
+    if (!s.alive) tr.style.opacity = '0.5';
+    body.appendChild(tr);
+  });
+}
+
+function renderEliminationSchedule(d, players) {
+  const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket || {});
+  const upcoming = [];
+  const completed = [];
+
+  bracket.forEach(match => {
+    if (match.player1 === null || match.player2 === null) return; // TBD or bye
+    const isBye = (match.player1 === null && match.player2 !== null) || (match.player2 === null && match.player1 !== null);
+    if (isBye) return;
+
+    if (match.winner !== null && match.winner !== undefined) {
+      completed.push(match);
+    } else if (match.player1 !== null && match.player2 !== null) {
+      upcoming.push(match);
+    }
+  });
+
+  const upList = document.getElementById('upcomingList');
+  if (upcoming.length === 0) {
+    upList.innerHTML = '<p class="text-dim" style="font-style:italic;">No upcoming games.</p>';
+  } else {
+    upList.innerHTML = '';
+    upcoming.forEach(m => {
+      const p1 = players[m.player1] || 'TBD';
+      const p2 = players[m.player2] || 'TBD';
+      let bracketSize = 1;
+      while (bracketSize < players.length) bracketSize *= 2;
+      const totalRounds = Math.log2(bracketSize);
+      const roundName = getEliminationRoundName(m.round, totalRounds);
+      const div = document.createElement('div');
+      div.className = 'game-item';
+      div.innerHTML = `<span class="game-round-tag">${roundName}</span><span class="game-players">${esc(p1)} <span class="text-dim">vs</span> ${esc(p2)}</span>`;
+      upList.appendChild(div);
+    });
+  }
+
+  const totalMatches = bracket.filter(m => m.player1 !== null && m.player2 !== null && !(m.player1 === null || m.player2 === null)).length;
+  document.getElementById('completedCount').textContent = `${completed.length} / ${totalMatches || '?'}`;
+  const compList = document.getElementById('completedList');
+  compList.innerHTML = '';
+  completed.reverse().forEach(m => {
+    const p1 = players[m.player1] || 'TBD';
+    const p2 = players[m.player2] || 'TBD';
+    const winnerName = players[m.winner] || 'Unknown';
+    let bracketSize = 1;
+    while (bracketSize < players.length) bracketSize *= 2;
+    const totalRounds = Math.log2(bracketSize);
+    const roundName = getEliminationRoundName(m.round, totalRounds);
+    const div = document.createElement('div');
+    div.className = 'game-item';
+    const resClass = m.winner === m.player1 ? 'result-white' : 'result-black';
+    const resLabel = m.winner === m.player1 ? '1 - 0' : '0 - 1';
+    div.innerHTML = `<span class="game-round-tag">${roundName}</span><span class="game-players">${esc(p1)} vs ${esc(p2)}</span><span class="game-result ${resClass}">${resLabel}</span>`;
+    compList.appendChild(div);
+  });
+}
+
+// =====================================================
+// RENDER STANDINGS (Round Robin & Swiss)
+// =====================================================
 function renderStandings(players, schedule, results) {
   const standings = computeStandings(players, schedule, results);
   const body = document.getElementById('standingsBody');
@@ -714,12 +1285,14 @@ function renderStandings(players, schedule, results) {
   });
 }
 
+// =====================================================
+// RENDER SCHEDULE TAB (Round Robin & Swiss)
+// =====================================================
 function renderScheduleTab(players, schedule, results) {
   const upcoming = [];
   const completed = [];
   const totalGames = Object.keys(schedule).length;
 
-  // Figure out which games are on boards (active)
   const activeGameIndices = new Set();
   if (currentData.boardState) {
     Object.values(currentData.boardState).forEach(bs => {
@@ -742,7 +1315,6 @@ function renderScheduleTab(players, schedule, results) {
     upList.innerHTML = '<p class="text-dim" style="font-style:italic;">No upcoming games.</p>';
   } else {
     upList.innerHTML = '';
-    // Show up to 12 upcoming
     upcoming.slice(0, 12).forEach(u => {
       const wName = players[u.game.white] || 'Bye';
       const bName = players[u.game.black] || 'Bye';
@@ -799,17 +1371,17 @@ function computeStandings(players, schedule, results) {
 }
 
 // =====================================================
-// SUBMIT RESULT
+// SUBMIT RESULT (Round Robin & Swiss)
 // =====================================================
 async function submitResult(boardIdx, gameIndex, result) {
   if (!isDirector || !currentCode) return;
   const d = currentData;
+  const format = d.config.format || 'single';
   const schedule = d.schedule || {};
   const results = d.results || {};
   const totalGames = Object.keys(schedule).length;
   let nextIdx = d.nextGameIndex || 0;
 
-  // Build atomic update
   const updates = {};
   updates[`tournaments/${currentCode}/results/${gameIndex}`] = result;
 
@@ -823,9 +1395,17 @@ async function submitResult(boardIdx, gameIndex, result) {
     });
   }
 
+  // For Swiss, only assign games from the current round
+  const currentSwissRound = d.swissRound;
+
   let assignedGameIndex = null;
   while (nextIdx < totalGames) {
     if (!results[nextIdx] && !activeIndices.has(nextIdx) && nextIdx !== gameIndex) {
+      const game = schedule[nextIdx];
+      if (format === 'swiss' && game && game.round !== currentSwissRound) {
+        nextIdx++;
+        continue;
+      }
       assignedGameIndex = nextIdx;
       nextIdx++;
       break;
@@ -843,18 +1423,38 @@ async function submitResult(boardIdx, gameIndex, result) {
   // Check if tournament is now complete
   const newResults = { ...results, [gameIndex]: result };
   const completedCount = Object.keys(newResults).length;
-  if (completedCount >= totalGames) {
-    // Verify all boards will be idle
-    let allIdle = assignedGameIndex === null;
-    if (allIdle && d.boardState) {
-      for (const [b, bs] of Object.entries(d.boardState)) {
-        if (parseInt(b) !== boardIdx && bs && bs.gameIndex !== undefined && bs.gameIndex !== null) {
-          allIdle = false; break;
+
+  if (format === 'swiss') {
+    // For Swiss, check if all rounds are done
+    const totalSwissRounds = d.totalSwissRounds || 5;
+    const swissRound = d.swissRound || 0;
+    if (swissRound >= totalSwissRounds - 1 && completedCount >= totalGames) {
+      let allIdle = assignedGameIndex === null;
+      if (allIdle && d.boardState) {
+        for (const [b, bs] of Object.entries(d.boardState)) {
+          if (parseInt(b) !== boardIdx && bs && bs.gameIndex !== undefined && bs.gameIndex !== null) {
+            allIdle = false; break;
+          }
         }
       }
+      if (allIdle) {
+        updates[`tournaments/${currentCode}/status`] = 'complete';
+      }
     }
-    if (allIdle) {
-      updates[`tournaments/${currentCode}/status`] = 'complete';
+  } else {
+    // Round robin
+    if (completedCount >= totalGames) {
+      let allIdle = assignedGameIndex === null;
+      if (allIdle && d.boardState) {
+        for (const [b, bs] of Object.entries(d.boardState)) {
+          if (parseInt(b) !== boardIdx && bs && bs.gameIndex !== undefined && bs.gameIndex !== null) {
+            allIdle = false; break;
+          }
+        }
+      }
+      if (allIdle) {
+        updates[`tournaments/${currentCode}/status`] = 'complete';
+      }
     }
   }
 
@@ -865,6 +1465,129 @@ async function submitResult(boardIdx, gameIndex, result) {
     alert('Error submitting result: ' + e.message);
   }
 }
+
+// =====================================================
+// SUBMIT ELIMINATION RESULT
+// =====================================================
+async function submitEliminationResult(matchIndex, winner) {
+  if (!isDirector || !currentCode) return;
+  const d = currentData;
+  const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket || {});
+  const players = d.config.players;
+
+  let bracketSize = 1;
+  while (bracketSize < players.length) bracketSize *= 2;
+  const totalRounds = Math.log2(bracketSize);
+
+  // Find the match
+  const match = bracket.find(m => m.matchIndex === matchIndex);
+  if (!match) return;
+
+  const updates = {};
+  // Set winner
+  updates[`tournaments/${currentCode}/bracket/${matchIndex}/winner`] = winner;
+
+  // Advance winner to next round
+  const currentRound = match.round;
+  if (currentRound < totalRounds - 1) {
+    // Find which match in the next round this feeds into
+    const roundMatches = bracket.filter(m => m.round === currentRound);
+    const matchPosInRound = roundMatches.indexOf(match);
+    const nextRoundMatches = bracket.filter(m => m.round === currentRound + 1);
+    const nextMatchIdx = Math.floor(matchPosInRound / 2);
+
+    if (nextMatchIdx < nextRoundMatches.length) {
+      const nextMatch = nextRoundMatches[nextMatchIdx];
+      if (matchPosInRound % 2 === 0) {
+        updates[`tournaments/${currentCode}/bracket/${nextMatch.matchIndex}/player1`] = winner;
+      } else {
+        updates[`tournaments/${currentCode}/bracket/${nextMatch.matchIndex}/player2`] = winner;
+      }
+    }
+  }
+
+  // Check if current round is now complete, advance eliminationRound
+  const currentRoundMatches = bracket.filter(m => m.round === currentRound);
+  const allCurrentDone = currentRoundMatches.every(m => {
+    if (m.matchIndex === matchIndex) return true; // This one is being decided now
+    return m.winner !== null && m.winner !== undefined;
+  });
+  if (allCurrentDone && currentRound < totalRounds - 1) {
+    updates[`tournaments/${currentCode}/eliminationRound`] = currentRound + 1;
+  }
+
+  // Check if final match
+  if (currentRound === totalRounds - 1) {
+    updates[`tournaments/${currentCode}/status`] = 'complete';
+  }
+
+  try {
+    await update(ref(db), updates);
+  } catch (e) {
+    console.error('Error submitting elimination result:', e);
+    alert('Error submitting result: ' + e.message);
+  }
+}
+window.submitEliminationResult = submitEliminationResult;
+
+// =====================================================
+// GENERATE NEXT SWISS ROUND
+// =====================================================
+async function generateNextSwissRound() {
+  if (!isDirector || !currentCode) return;
+  const d = currentData;
+  const players = d.config.players;
+  const schedule = d.schedule || {};
+  const results = d.results || {};
+  const swissRound = (d.swissRound || 0) + 1;
+  const totalSwissRounds = d.totalSwissRounds || 5;
+
+  if (swissRound >= totalSwissRounds) {
+    alert('All Swiss rounds have been played.');
+    return;
+  }
+
+  // Generate new round pairings
+  const newPairings = generateSwissRound(players, schedule, results, swissRound);
+
+  if (newPairings.length === 0) {
+    alert('Unable to generate pairings - no valid pairings found.');
+    return;
+  }
+
+  const updates = {};
+  const existingGameCount = Object.keys(schedule).length;
+
+  // Add new games to schedule
+  newPairings.forEach((game, i) => {
+    const idx = existingGameCount + i;
+    updates[`tournaments/${currentCode}/schedule/${idx}`] = game;
+  });
+
+  // Update swiss round number
+  updates[`tournaments/${currentCode}/swissRound`] = swissRound;
+
+  // Assign games to boards
+  const boards = d.config.boards;
+  let nextGameIndex = existingGameCount;
+  for (let b = 0; b < boards; b++) {
+    if (nextGameIndex < existingGameCount + newPairings.length) {
+      updates[`tournaments/${currentCode}/boardState/${b}`] = { gameIndex: nextGameIndex };
+      nextGameIndex++;
+    } else {
+      updates[`tournaments/${currentCode}/boardState/${b}`] = null;
+    }
+  }
+  updates[`tournaments/${currentCode}/nextGameIndex`] = nextGameIndex;
+
+  try {
+    await update(ref(db), updates);
+  } catch (e) {
+    console.error('Error generating next round:', e);
+    alert('Error generating next round: ' + e.message);
+  }
+}
+window.generateNextSwissRound = generateNextSwissRound;
 
 // =====================================================
 // COPY CODE
