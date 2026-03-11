@@ -483,12 +483,20 @@
     .features-grid { grid-template-columns: 1fr; max-width: 400px; }
     .steps-grid { grid-template-columns: 1fr; max-width: 320px; }
     .boards-grid { grid-template-columns: 1fr; }
-    .tourney-header { flex-direction: column; align-items: flex-start; }
+    .tourney-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .tourney-header-badges { flex-wrap: wrap; gap: 6px; }
     .tab-btn { font-size: 0.82rem; padding: 9px 4px; }
     .setup-row { grid-template-columns: 1fr; }
-    .navbar { padding: 0 16px; }
+    .navbar { padding: 0 12px; }
+    .nav-center { display: none !important; }
+    .nav-brand { font-size: 1rem; }
     .container { padding: 16px; }
-    .nav-user { max-width: 120px; }
+    .nav-user { max-width: 100px; font-size: 0.8rem; }
+    .nav-right { gap: 8px; }
+    .btn-nav { padding: 6px 12px; font-size: 0.8rem; }
+    .code-badge { font-size: 0.85rem; padding: 4px 10px; }
+    .role-badge { font-size: 0.7rem; }
+    .nav-dropdown { min-width: 240px; right: -12px; }
   }
   @media (max-width: 480px) {
     .hero h1 { font-size: 1.8rem; }
@@ -502,6 +510,8 @@
     table { font-size: 0.85rem; }
     th, td { padding: 8px 8px; }
     .modal-card { padding: 24px 20px; }
+    .nav-brand { font-size: 0.9rem; }
+    .tourney-header h2 { font-size: 1.1rem; }
   }
 </style>
 </head>
@@ -823,6 +833,7 @@
       </div>
       <div class="auth-error" id="signInError"></div>
       <button class="btn-primary" style="width:100%;" onclick="handleEmailSignIn()">Sign In</button>
+      <p style="text-align:center;margin-top:14px;font-size:0.9rem;color:var(--text-dim);">Don't have an account? <a href="#" onclick="switchAuthTab('signup',document.querySelectorAll('.auth-tab')[1]);return false;" style="color:var(--accent-light);font-weight:600;">Sign Up</a></p>
     </div>
 
     <!-- Sign Up -->
@@ -837,6 +848,7 @@
       </div>
       <div class="auth-error" id="signUpError"></div>
       <button class="btn-primary" style="width:100%;" onclick="handleEmailSignUp()">Create Account</button>
+      <p style="text-align:center;margin-top:14px;font-size:0.9rem;color:var(--text-dim);">Already have an account? <a href="#" onclick="switchAuthTab('signin',document.querySelectorAll('.auth-tab')[0]);return false;" style="color:var(--accent-light);font-weight:600;">Sign In</a></p>
     </div>
 
     <div class="auth-divider">or</div>
@@ -1187,9 +1199,9 @@ window.handleSignOut = handleSignOut;
 
 function friendlyAuthError(code) {
   const map = {
-    'auth/user-not-found': 'No account found with that email.',
-    'auth/wrong-password': 'Incorrect password.',
-    'auth/invalid-credential': 'Invalid email or password.',
+    'auth/user-not-found': 'No account found with that email. Need to sign up first!',
+    'auth/wrong-password': 'Incorrect password. Try again or sign up for a new account.',
+    'auth/invalid-credential': 'No account found or wrong password. Try signing up if you\'re new!',
     'auth/email-already-in-use': 'An account with this email already exists.',
     'auth/weak-password': 'Password is too weak. Use at least 6 characters.',
     'auth/invalid-email': 'Please enter a valid email address.',
