@@ -606,9 +606,15 @@
         <label>Tournament Name</label>
         <input type="text" id="tourneyName" placeholder="e.g. Spring Championship 2026" maxlength="60">
       </div>
-      <div class="field-group">
-        <label>Time Control</label>
-        <input type="text" id="timeControl" placeholder="e.g. G/15+10, 5|0 Blitz" maxlength="40">
+      <div class="setup-row">
+        <div class="field-group">
+          <label>Time Control</label>
+          <input type="text" id="timeControl" placeholder="e.g. G/15+10, 5|0 Blitz" maxlength="40">
+        </div>
+        <div class="field-group">
+          <label>Start Time (optional)</label>
+          <input type="datetime-local" id="startTime">
+        </div>
       </div>
       <div class="field-group">
         <label>Player Entry Mode</label>
@@ -710,8 +716,19 @@
       <div class="card" style="text-align:center;padding:32px;">
         <div style="font-size:2.5rem;margin-bottom:12px;">&#9816;</div>
         <h3 style="margin-bottom:4px;">Waiting for Players</h3>
-        <p class="text-dim mb-16">Share the code above — players sign in and join below</p>
-        <div id="lobbyPlayerList" style="margin-bottom:24px;"></div>
+        <p class="text-dim mb-8">Share this link with your players:</p>
+
+        <!-- Shareable Link -->
+        <div id="lobbyShareBox" style="background:var(--bg-primary);border:2px solid var(--accent);border-radius:var(--radius-lg);padding:16px;margin:0 auto 20px;max-width:500px;">
+          <p id="lobbyShareLink" style="font-family:monospace;font-size:0.95rem;color:var(--accent-light);word-break:break-all;margin-bottom:10px;"></p>
+          <button class="btn-primary btn-small" onclick="copyLobbyLink()">&#128203; Copy Link</button>
+        </div>
+
+        <p class="text-dim mb-8" style="font-size:0.85rem;">Or share the code: <strong id="lobbyCodeDisplay" style="color:var(--text);letter-spacing:2px;"></strong></p>
+        <div id="lobbyStartTime" style="margin-bottom:16px;"></div>
+
+        <h3 style="margin:20px 0 12px;font-size:1.1rem;">Registered Players</h3>
+        <div id="lobbyPlayerList" style="margin-bottom:16px;"></div>
         <p class="text-dim mb-16" id="lobbyPlayerCount">0 players registered</p>
         <div id="lobbyJoinSection" style="display:none;margin-bottom:16px;">
           <button class="btn-primary btn-lg" onclick="joinLobby()">&#9816; Join Tournament</button>
@@ -1171,6 +1188,19 @@ async function refreshSubscriptionStatus() {
   }
 })();
 
+// Handle ?join=CODE URL parameter
+(function checkJoinParam() {
+  const params = new URLSearchParams(window.location.search);
+  const joinCode = params.get('join');
+  if (joinCode) {
+    window.history.replaceState({}, '', window.location.pathname);
+    // Wait a moment for Firebase to init, then open the tournament
+    setTimeout(() => {
+      openTournament(joinCode.toUpperCase());
+    }, 1000);
+  }
+})();
+
 // =====================================================
 // CREATE TOURNAMENT GATING
 // =====================================================
@@ -1485,6 +1515,7 @@ async function startTournament() {
   const boards = parseInt(document.getElementById('boardCount').value);
   const format = getFormat();
   const timeControl = document.getElementById('timeControl').value.trim();
+  const startTime = document.getElementById('startTime').value || '';
 
   const btn = document.getElementById('startBtn');
   btn.disabled = true;
@@ -1516,7 +1547,7 @@ async function startTournament() {
 
     tourneyData = {
       directorUid: currentUid,
-      config: { name, players, format, boards, timeControl, createdAt: Date.now() },
+      config: { name, players, format, boards, timeControl, startTime, createdAt: Date.now() },
       schedule: scheduleObj,
       results: {},
       boardState,
@@ -1529,7 +1560,7 @@ async function startTournament() {
 
     tourneyData = {
       directorUid: currentUid,
-      config: { name, players, format, boards, timeControl, createdAt: Date.now() },
+      config: { name, players, format, boards, timeControl, startTime, createdAt: Date.now() },
       bracket,
       eliminationRound: 0,
       status: 'active'
@@ -1617,6 +1648,7 @@ async function createLobby() {
   const boards = parseInt(document.getElementById('boardCount').value);
   const format = getFormat();
   const timeControl = document.getElementById('timeControl').value.trim();
+  const startTime = document.getElementById('startTime').value || '';
   const minPlayers = parseInt(document.getElementById('minPlayers').value) || 4;
   const maxPlayers = parseInt(document.getElementById('maxPlayers').value) || 20;
 
@@ -1631,7 +1663,7 @@ async function createLobby() {
   const lobbyData = {
     directorUid: currentUid,
     config: {
-      name, format, boards, timeControl,
+      name, format, boards, timeControl, startTime,
       minPlayers, maxPlayers,
       createdAt: Date.now()
     },
@@ -1817,14 +1849,32 @@ window.leaveTournament = leaveTournament;
 // =====================================================
 function renderLobby() {
   const d = currentData;
+  const cfg = d.config || {};
   const registered = d.registeredPlayers || {};
   const playerEntries = Object.entries(registered).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
   const listEl = document.getElementById('lobbyPlayerList');
   const countEl = document.getElementById('lobbyPlayerCount');
 
+  // Set shareable link and code
+  const joinUrl = window.location.origin + window.location.pathname + '?join=' + currentCode;
+  document.getElementById('lobbyShareLink').textContent = joinUrl;
+  document.getElementById('lobbyCodeDisplay').textContent = currentCode;
+
+  // Show start time if set
+  const stEl = document.getElementById('lobbyStartTime');
+  if (cfg.startTime) {
+    const dt = new Date(cfg.startTime);
+    stEl.innerHTML = `<p style="font-size:1rem;color:var(--accent-gold);font-weight:600;">&#128339; Starts: ${dt.toLocaleDateString()} at ${dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p>`;
+  } else {
+    stEl.innerHTML = '';
+  }
+
+  // Hide complete banner during registration
+  document.getElementById('completeBanner').style.display = 'none';
+
   listEl.innerHTML = '';
   if (playerEntries.length === 0) {
-    listEl.innerHTML = '<p class="text-dim" style="font-style:italic;">No players yet — share the code!</p>';
+    listEl.innerHTML = '<p class="text-dim" style="font-style:italic;">No players yet — share the link!</p>';
   } else {
     playerEntries.forEach(([uid, p], i) => {
       const span = document.createElement('span');
@@ -2530,6 +2580,14 @@ function copyCode() {
   }).catch(() => {});
 }
 window.copyCode = copyCode;
+
+function copyLobbyLink() {
+  const joinUrl = window.location.origin + window.location.pathname + '?join=' + currentCode;
+  navigator.clipboard.writeText(joinUrl).then(() => {
+    showToast('Link copied!', 'success');
+  }).catch(() => {});
+}
+window.copyLobbyLink = copyLobbyLink;
 
 // =====================================================
 // HELPERS
