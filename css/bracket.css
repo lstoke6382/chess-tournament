@@ -1,0 +1,349 @@
+/* =====================================================
+   BRACKET DISPLAY - Single & Double Elimination
+   Visual bracket layout with connector lines
+   ===================================================== */
+
+/* ===== BRACKET WRAPPER ===== */
+.bracket-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 0;
+  margin-bottom: 24px;
+}
+.bracket-wrapper::-webkit-scrollbar { height: 8px; }
+.bracket-wrapper::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 4px; }
+.bracket-wrapper::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+.bracket-wrapper::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ===== BRACKET LAYOUT (columns per round) ===== */
+.bracket-tree {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  min-width: max-content;
+}
+
+.bracket-round-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  min-width: 240px;
+  padding: 0 20px;
+  position: relative;
+}
+
+.bracket-round-header {
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 0 16px;
+  flex-shrink: 0;
+}
+
+/* ===== MATCH CARD ===== */
+.bracket-match-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin: 8px 0;
+  position: relative;
+  transition: border-color 0.2s;
+  min-width: 200px;
+}
+.bracket-match-card:hover { border-color: rgba(255,255,255,0.12); }
+.bracket-match-card.match-active { border-color: var(--accent); }
+.bracket-match-card.match-bye { opacity: 0.45; border-style: dashed; }
+.bracket-match-card.match-complete { border-color: rgba(105,146,62,0.3); }
+
+/* Board label on match card */
+.match-board-label {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 0 0 0 var(--radius);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Player rows inside match card */
+.match-player-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.match-player-row:first-child { border-bottom: 1px solid var(--border); }
+.match-player-row .player-seed {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  min-width: 20px;
+  text-align: center;
+}
+.match-player-row .player-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.match-player-row .player-score {
+  font-variant-numeric: tabular-nums;
+  min-width: 18px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.match-player-row.is-winner {
+  background: rgba(105,146,62,0.15);
+}
+.match-player-row.is-winner .player-name { color: var(--accent-light); }
+.match-player-row.is-winner .player-score { color: var(--accent-light); font-weight: 700; }
+.match-player-row.is-loser {
+  opacity: 0.45;
+}
+.match-player-row.is-loser .player-name { text-decoration: line-through; }
+.match-player-row.is-tbd {
+  color: var(--text-dim);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* Director action buttons on match */
+.match-actions {
+  display: flex;
+  border-top: 1px solid var(--border);
+}
+.match-actions button {
+  flex: 1;
+  padding: 7px 4px;
+  font-size: 0.78rem;
+  min-height: 32px;
+  border-radius: 0;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.match-actions button:first-child { border-right: 1px solid var(--border); }
+.match-actions .btn-win-p1 { background: rgba(105,146,62,0.12); color: var(--accent-light); }
+.match-actions .btn-win-p1:hover { background: rgba(105,146,62,0.25); }
+.match-actions .btn-win-p2 { background: rgba(255,255,255,0.04); color: var(--text); }
+.match-actions .btn-win-p2:hover { background: rgba(255,255,255,0.08); }
+
+/* In-progress label */
+.match-status {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* ===== CONNECTOR LINES ===== */
+.bracket-match-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex: 1;
+}
+
+/* Right connector: line from match to the right */
+.bracket-match-wrap::after {
+  content: '';
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  width: 20px;
+  border-top: 2px solid rgba(255,255,255,0.1);
+}
+
+/* Hide connector on last round */
+.bracket-round-col:last-child .bracket-match-wrap::after { display: none; }
+
+/* Left connector: line from left into match */
+.bracket-match-wrap::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  width: 20px;
+  border-top: 2px solid rgba(255,255,255,0.1);
+}
+
+/* Hide left connector on first round */
+.bracket-round-col:first-child .bracket-match-wrap::before { display: none; }
+
+/* Vertical connector between match pairs */
+.bracket-connector {
+  position: absolute;
+  right: -20px;
+  width: 2px;
+  background: rgba(255,255,255,0.1);
+}
+
+/* ===== DOUBLE ELIMINATION LAYOUT ===== */
+.double-elim-container {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.bracket-section {
+  position: relative;
+}
+
+.bracket-section-label {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  display: inline-block;
+  letter-spacing: 0.5px;
+}
+.bracket-section-label.winners { border-left: 3px solid var(--accent); }
+.bracket-section-label.losers { border-left: 3px solid var(--loss); }
+.bracket-section-label.grand-final { border-left: 3px solid var(--accent-gold); }
+
+/* Grand Final special styling */
+.grand-final-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.grand-final-section .bracket-match-card {
+  min-width: 280px;
+  border-color: var(--accent-gold);
+  box-shadow: 0 4px 20px rgba(220,174,29,0.15);
+}
+.grand-final-label {
+  font-size: 0.75rem;
+  color: var(--accent-gold);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.reset-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ===== BOARD ASSIGNMENT PANEL ===== */
+.elim-boards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.elim-board-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+.elim-board-card.board-active { border-color: var(--accent); }
+.elim-board-header {
+  background: rgba(0,0,0,0.25);
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.elim-board-header .board-num { color: var(--accent-light); }
+.elim-board-header .board-round-tag {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.elim-board-body { padding: 14px; }
+.elim-board-matchup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.elim-board-player {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+}
+.elim-board-player.white-player { background: var(--board-light); color: #1a1a2e; }
+.elim-board-player.black-player { background: #2a2a2a; color: #e0e0e0; border: 1px solid #444; }
+.elim-board-vs { font-weight: 700; color: var(--text-dim); font-size: 0.85rem; }
+.elim-board-idle {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 20px;
+  font-style: italic;
+}
+.elim-board-actions { display: flex; gap: 8px; }
+.elim-board-actions button { flex: 1; font-size: 0.85rem; padding: 10px 8px; }
+
+/* ===== ROUND TABS (mobile) ===== */
+.bracket-round-tabs {
+  display: none;
+  gap: 4px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding: 4px;
+  background: rgba(0,0,0,0.25);
+  border-radius: var(--radius-lg);
+}
+.bracket-round-tab {
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+.bracket-round-tab.active { background: var(--accent); color: #fff; }
+.bracket-round-tab:hover { color: var(--text); }
+
+/* ===== MOBILE RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .bracket-round-tabs { display: flex; }
+  .bracket-round-col { min-width: 200px; padding: 0 12px; }
+  .bracket-match-card { min-width: 180px; }
+  .match-player-row { padding: 6px 10px; font-size: 0.82rem; }
+  .match-actions button { font-size: 0.75rem; padding: 6px 2px; }
+  .elim-boards-grid { grid-template-columns: 1fr; }
+  .grand-final-section .bracket-match-card { min-width: 240px; }
+}
+
+@media (max-width: 480px) {
+  .bracket-round-col { min-width: 170px; padding: 0 8px; }
+  .match-player-row { padding: 5px 8px; font-size: 0.78rem; }
+  .elim-board-actions { flex-direction: column; }
+  .elim-board-actions button { width: 100%; }
+}

@@ -6,6 +6,7 @@
 <title>Vienna Gambit Tournaments</title>
 <script src="https://js.stripe.com/v3/"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/bracket.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
@@ -669,6 +670,7 @@
             <label><input type="radio" name="format" value="single" checked> Single Round Robin</label>
             <label><input type="radio" name="format" value="double"> Double Round Robin</label>
             <label><input type="radio" name="format" value="elimination"> Single Elimination</label>
+            <label><input type="radio" name="format" value="double_elimination"> Double Elimination</label>
           </div>
         </div>
       </div>
@@ -776,6 +778,7 @@
     <!-- Tab: Boards -->
     <div id="tabBoards" class="tab-panel active">
       <div class="boards-grid" id="boardsGrid"></div>
+      <div id="elimBoardsContainer" style="display:none;"></div>
       <div class="bracket-container" id="bracketContainer" style="display:none;"></div>
     </div>
 
@@ -910,6 +913,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebas
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
   signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
 import { getDatabase, ref, set, get, update, onValue, off } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import {
+  generateBracket as genBracket,
+  generateDoubleEliminationBracket,
+  getEliminationRoundName as getElimRoundName,
+  getReadyMatches,
+  assignMatchesToBoards,
+  initializeBoardState,
+  renderSingleEliminationBracket,
+  renderDoubleEliminationBracket,
+  renderEliminationBoards
+} from "./js/bracket.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -1035,7 +1049,7 @@ async function loadMyTournaments() {
     codes.forEach(code => {
       const t = tournaments[code];
       const status = statusMap[code] || 'unknown';
-      const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : 'Round Robin';
+      const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : t.format === 'double_elimination' ? 'Double Elim' : 'Round Robin';
       const statusLabel = status === 'registration' ? '🟡 Lobby' : status === 'active' ? '🟢 Active' : status === 'complete' ? '✓ Done' : '';
       const btn = document.createElement('button');
       btn.className = 'nav-dropdown-item';
@@ -1070,7 +1084,7 @@ async function loadMyTournaments() {
       card.style.transition = 'border-color 0.2s';
       card.onmouseenter = () => card.style.borderColor = 'var(--accent)';
       card.onmouseleave = () => card.style.borderColor = 'var(--border)';
-      const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : 'Round Robin';
+      const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : t.format === 'double_elimination' ? 'Double Elim' : 'Round Robin';
       const date = t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '';
 
       let statusBadge = '';
@@ -1413,15 +1427,19 @@ function getFormat() {
 function updateFormatUI() {
   const fmt = getFormat();
   const elimNote = document.getElementById('eliminationNote');
-  if (fmt === 'elimination') {
+  if (fmt === 'elimination' || fmt === 'double_elimination') {
     const n = playerFields.length;
     let bracketSize = 1;
     while (bracketSize < n) bracketSize *= 2;
     const byes = bracketSize - n;
+    const typeLabel = fmt === 'double_elimination' ? 'Double elimination' : 'Single elimination';
     if (byes > 0) {
-      elimNote.textContent = `Bracket size: ${bracketSize}. ${byes} player${byes > 1 ? 's' : ''} will receive a first-round bye.`;
+      elimNote.textContent = `${typeLabel} \u2014 Bracket size: ${bracketSize}. ${byes} player${byes > 1 ? 's' : ''} will receive a first-round bye.`;
     } else {
-      elimNote.textContent = `Perfect bracket: ${bracketSize} players, no byes needed.`;
+      elimNote.textContent = `${typeLabel} \u2014 Perfect bracket: ${bracketSize} players, no byes needed.`;
+    }
+    if (fmt === 'double_elimination') {
+      elimNote.textContent += ` Grand Final with bracket reset if needed.`;
     }
     elimNote.style.display = 'block';
   } else {
@@ -1446,6 +1464,11 @@ function updatePreview() {
     while (bracketSize < n) bracketSize *= 2;
     rounds = Math.log2(bracketSize);
     totalGames = n - 1;
+  } else if (fmt === 'double_elimination') {
+    let bracketSize = 1;
+    while (bracketSize < n) bracketSize *= 2;
+    rounds = Math.log2(bracketSize) * 2 + 1; // approximate
+    totalGames = 2 * n - 1; // max with reset
   }
 
   document.getElementById('prevPlayers').textContent = n;
@@ -1635,12 +1658,30 @@ async function startTournament() {
     };
 
   } else if (format === 'elimination') {
-    const bracket = generateBracket(players.length);
+    const bracket = genBracket(players.length);
+    const boardState = initializeBoardState(bracket, boards);
 
     tourneyData = {
       directorUid: currentUid,
       config: { name, players, format, boards, timeControl, startTime, createdAt: Date.now() },
       bracket,
+      boardState,
+      eliminationRound: 0,
+      status: 'active'
+    };
+
+  } else if (format === 'double_elimination') {
+    const { winners, losers, grandFinal, bracketSize, wbRounds } = generateDoubleEliminationBracket(players.length);
+    const allMatches = [...winners, ...losers, ...grandFinal];
+    const boardState = initializeBoardState(allMatches, boards);
+
+    tourneyData = {
+      directorUid: currentUid,
+      config: { name, players, format, boards, timeControl, startTime, createdAt: Date.now() },
+      winners,
+      losers,
+      grandFinal,
+      boardState,
       eliminationRound: 0,
       status: 'active'
     };
@@ -1820,9 +1861,20 @@ async function startFromLobby() {
   updates[`tournaments/${currentCode}/status`] = 'active';
   updates[`tournaments/${currentCode}/results`] = {};
 
-  if (isElimination) {
-    const bracket = generateBracket(players.length);
+  if (format === 'double_elimination') {
+    const { winners, losers, grandFinal } = generateDoubleEliminationBracket(players.length);
+    const allMatches = [...winners, ...losers, ...grandFinal];
+    const boardState = initializeBoardState(allMatches, boards);
+    updates[`tournaments/${currentCode}/winners`] = winners;
+    updates[`tournaments/${currentCode}/losers`] = losers;
+    updates[`tournaments/${currentCode}/grandFinal`] = grandFinal;
+    updates[`tournaments/${currentCode}/boardState`] = boardState;
+    updates[`tournaments/${currentCode}/eliminationRound`] = 0;
+  } else if (isElimination) {
+    const bracket = genBracket(players.length);
+    const boardState = initializeBoardState(bracket, boards);
     updates[`tournaments/${currentCode}/bracket`] = bracket;
+    updates[`tournaments/${currentCode}/boardState`] = boardState;
     updates[`tournaments/${currentCode}/eliminationRound`] = 0;
   } else {
     const schedule = generateSchedule(players.length, isDouble);
@@ -2042,37 +2094,73 @@ function renderTournament() {
   const bracketContainer = document.getElementById('bracketContainer');
   const progressContainer = document.getElementById('progressContainer');
 
-  if (format === 'elimination') {
+  const elimBoardsContainer = document.getElementById('elimBoardsContainer');
+
+  if (format === 'elimination' || format === 'double_elimination') {
     boardsGrid.style.display = 'none';
     bracketContainer.style.display = 'block';
-    renderEliminationBracket(d, players);
-    renderEliminationStandings(d, players);
-    renderEliminationSchedule(d, players);
+    elimBoardsContainer.style.display = 'block';
 
-    // Progress bar for elimination
-    if (d.bracket) {
-      const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket);
-      let bracketSize = 1;
-      while (bracketSize < players.length) bracketSize *= 2;
-      const totalRounds = Math.log2(bracketSize);
-      const currentRound = d.eliminationRound || 0;
-      const roundName = getEliminationRoundName(currentRound, totalRounds);
-      roundInfoBar.style.display = 'flex';
-      document.getElementById('roundInfoLabel').textContent = roundName;
-      document.getElementById('roundInfoDetail').textContent = `Round ${currentRound + 1} of ${totalRounds}`;
+    const bracketCallbacks = {
+      onResult: (cardEl, matchIdx, winner, winnerName) => {
+        showBracketResultConfirmation(cardEl, matchIdx, winner, winnerName);
+      }
+    };
 
-      // Count completed real matches
-      const realMatches = bracket.filter(m => m.player1 !== null && m.player2 !== null &&
-        !((m.player1 !== null && m.player2 === null) || (m.player2 !== null && m.player1 === null)));
+    if (format === 'elimination') {
+      renderSingleEliminationBracket(bracketContainer, d, players, isDirector, bracketCallbacks);
+      renderEliminationBoards(elimBoardsContainer, d, players, isDirector, bracketCallbacks);
+      renderEliminationStandings(d, players);
+      renderEliminationSchedule(d, players);
+
+      if (d.bracket) {
+        const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket);
+        let bracketSize = 1;
+        while (bracketSize < players.length) bracketSize *= 2;
+        const totalRounds = Math.log2(bracketSize);
+        const currentRound = d.eliminationRound || 0;
+        const roundName = getElimRoundName(currentRound, totalRounds);
+        roundInfoBar.style.display = 'flex';
+        document.getElementById('roundInfoLabel').textContent = roundName;
+        document.getElementById('roundInfoDetail').textContent = `Round ${currentRound + 1} of ${totalRounds}`;
+
+        const realMatches = bracket.filter(m => m.player1 !== null && m.player2 !== null &&
+          !((m.player1 !== null && m.player2 === null) || (m.player2 !== null && m.player1 === null)));
+        const completedMatches = realMatches.filter(m => m.winner !== null && m.winner !== undefined);
+        const totalReal = players.length - 1;
+        const pct = totalReal > 0 ? Math.round((completedMatches.length / totalReal) * 100) : 0;
+        progressContainer.style.display = isComplete ? 'none' : 'block';
+        document.getElementById('progressText').textContent = pct + '% complete';
+        document.getElementById('progressCount').textContent = completedMatches.length + ' / ' + totalReal + ' matches';
+        document.getElementById('progressFill').style.width = pct + '%';
+      }
+    } else {
+      // Double elimination
+      renderDoubleEliminationBracket(bracketContainer, d, players, isDirector, bracketCallbacks);
+      renderEliminationBoards(elimBoardsContainer, d, players, isDirector, bracketCallbacks);
+      renderDoubleElimStandings(d, players);
+      renderDoubleElimSchedule(d, players);
+
+      const allMatches = [
+        ...(Array.isArray(d.winners) ? d.winners : Object.values(d.winners || {})),
+        ...(Array.isArray(d.losers) ? d.losers : Object.values(d.losers || {})),
+        ...(Array.isArray(d.grandFinal) ? d.grandFinal : Object.values(d.grandFinal || {}))
+      ];
+      const realMatches = allMatches.filter(m => m.player1 !== null && m.player2 !== null);
       const completedMatches = realMatches.filter(m => m.winner !== null && m.winner !== undefined);
-      const totalReal = players.length - 1;
+      const totalReal = 2 * players.length - 1; // max games in double elim
       const pct = totalReal > 0 ? Math.round((completedMatches.length / totalReal) * 100) : 0;
       progressContainer.style.display = isComplete ? 'none' : 'block';
       document.getElementById('progressText').textContent = pct + '% complete';
-      document.getElementById('progressCount').textContent = completedMatches.length + ' / ' + totalReal + ' matches';
+      document.getElementById('progressCount').textContent = completedMatches.length + ' / ' + totalReal + ' matches (max)';
       document.getElementById('progressFill').style.width = pct + '%';
+
+      roundInfoBar.style.display = 'flex';
+      document.getElementById('roundInfoLabel').textContent = 'Double Elimination';
+      document.getElementById('roundInfoDetail').textContent = `${completedMatches.length} matches played`;
     }
   } else {
+    elimBoardsContainer.style.display = 'none';
     boardsGrid.style.display = 'grid';
     bracketContainer.style.display = 'none';
 
@@ -2374,6 +2462,111 @@ function renderEliminationSchedule(d, players) {
 }
 
 // =====================================================
+// DOUBLE ELIMINATION STANDINGS & SCHEDULE
+// =====================================================
+function renderDoubleElimStandings(d, players) {
+  const allMatches = [
+    ...(Array.isArray(d.winners) ? d.winners : Object.values(d.winners || {})),
+    ...(Array.isArray(d.losers) ? d.losers : Object.values(d.losers || {})),
+    ...(Array.isArray(d.grandFinal) ? d.grandFinal : Object.values(d.grandFinal || {}))
+  ];
+
+  const losses = {};
+  const wins = {};
+  players.forEach((_, i) => { wins[i] = 0; losses[i] = 0; });
+
+  allMatches.forEach(match => {
+    if (match.winner !== null && match.winner !== undefined &&
+        match.player1 !== null && match.player2 !== null &&
+        match.player1 !== undefined && match.player2 !== undefined) {
+      wins[match.winner] = (wins[match.winner] || 0) + 1;
+      const loser = match.winner === match.player1 ? match.player2 : match.player1;
+      if (loser !== null && loser !== undefined) {
+        losses[loser] = (losses[loser] || 0) + 1;
+      }
+    }
+  });
+
+  const standings = players.map((name, i) => ({
+    index: i, name,
+    points: wins[i] || 0,
+    wins: wins[i] || 0,
+    draws: 0,
+    losses: losses[i] || 0,
+    played: (wins[i] || 0) + (losses[i] || 0),
+    alive: (losses[i] || 0) < 2
+  }));
+
+  standings.sort((a, b) => {
+    if (a.alive !== b.alive) return a.alive ? -1 : 1;
+    return b.wins - a.wins || a.losses - b.losses;
+  });
+
+  const body = document.getElementById('standingsBody');
+  body.innerHTML = '';
+  standings.forEach((s, i) => {
+    const tr = document.createElement('tr');
+    const status = s.alive ? '' : ' (Eliminated)';
+    tr.innerHTML = `<td>${i + 1}</td><td>${esc(s.name)}${status}</td><td class="pts-cell">${s.wins}</td><td>${s.wins}</td><td>${s.draws}</td><td>${s.losses}</td><td>${s.played}</td>`;
+    if (!s.alive) tr.style.opacity = '0.5';
+    body.appendChild(tr);
+  });
+}
+
+function renderDoubleElimSchedule(d, players) {
+  const allMatches = [
+    ...(Array.isArray(d.winners) ? d.winners : Object.values(d.winners || {})),
+    ...(Array.isArray(d.losers) ? d.losers : Object.values(d.losers || {})),
+    ...(Array.isArray(d.grandFinal) ? d.grandFinal : Object.values(d.grandFinal || {}))
+  ];
+
+  const upcoming = [];
+  const completed = [];
+
+  allMatches.forEach(match => {
+    if (match.player1 === null || match.player2 === null) return;
+    if (match.player1 === undefined || match.player2 === undefined) return;
+    if (match.winner !== null && match.winner !== undefined) {
+      completed.push(match);
+    } else {
+      upcoming.push(match);
+    }
+  });
+
+  const upList = document.getElementById('upcomingList');
+  if (upcoming.length === 0) {
+    upList.innerHTML = '<p class="text-dim" style="font-style:italic;">No upcoming games.</p>';
+  } else {
+    upList.innerHTML = '';
+    upcoming.forEach(m => {
+      const p1 = players[m.player1] || 'TBD';
+      const p2 = players[m.player2] || 'TBD';
+      const bracketLabel = m.bracket === 'winners' ? 'WB' : m.bracket === 'losers' ? 'LB' : 'GF';
+      const div = document.createElement('div');
+      div.className = 'game-item';
+      div.innerHTML = `<span class="game-round-tag">${bracketLabel} R${(m.round || 0) + 1}</span><span class="game-players">${esc(p1)} <span class="text-dim">vs</span> ${esc(p2)}</span>`;
+      upList.appendChild(div);
+    });
+  }
+
+  const totalMatches = allMatches.filter(m => m.player1 !== null && m.player2 !== null).length;
+  document.getElementById('completedCount').textContent = `${completed.length} / ${totalMatches || '?'}`;
+  const compList = document.getElementById('completedList');
+  compList.innerHTML = '';
+  completed.reverse().forEach(m => {
+    const p1 = players[m.player1] || 'TBD';
+    const p2 = players[m.player2] || 'TBD';
+    const bracketLabel = m.bracket === 'winners' ? 'WB' : m.bracket === 'losers' ? 'LB' : 'GF';
+    const div = document.createElement('div');
+    div.className = 'game-item';
+    const resClass = m.winner === m.player1 ? 'result-white' : 'result-black';
+    const resLabel = m.winner === m.player1 ? '1 - 0' : '0 - 1';
+    div.innerHTML = `<span class="game-round-tag">${bracketLabel} R${(m.round || 0) + 1}</span><span class="game-players">${esc(p1)} vs ${esc(p2)}</span><span class="game-result ${resClass}">${resLabel}</span>`;
+    compList.appendChild(div);
+  });
+}
+
+// =====================================================
 // RENDER STANDINGS (Round Robin)
 // =====================================================
 function renderStandings(players, schedule, results) {
@@ -2598,47 +2791,180 @@ async function submitResult(boardIdx, gameIndex, result) {
 async function submitEliminationResult(matchIndex, winner) {
   if (!isDirector || !currentCode) return;
   const d = currentData;
-  const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket || {});
+  const format = d.config.format || 'elimination';
   const players = d.config.players;
 
-  let bracketSize = 1;
-  while (bracketSize < players.length) bracketSize *= 2;
-  const totalRounds = Math.log2(bracketSize);
-
-  const match = bracket.find(m => m.matchIndex === matchIndex);
-  if (!match) return;
-
   const updates = {};
-  updates[`tournaments/${currentCode}/bracket/${matchIndex}/winner`] = winner;
 
-  const currentRound = match.round;
-  if (currentRound < totalRounds - 1) {
-    const roundMatches = bracket.filter(m => m.round === currentRound);
-    const matchPosInRound = roundMatches.indexOf(match);
-    const nextRoundMatches = bracket.filter(m => m.round === currentRound + 1);
-    const nextMatchIdx = Math.floor(matchPosInRound / 2);
+  if (format === 'double_elimination') {
+    // Handle double elimination result submission
+    const allBrackets = {
+      winners: Array.isArray(d.winners) ? d.winners : Object.values(d.winners || {}),
+      losers: Array.isArray(d.losers) ? d.losers : Object.values(d.losers || {}),
+      grandFinal: Array.isArray(d.grandFinal) ? d.grandFinal : Object.values(d.grandFinal || {})
+    };
 
-    if (nextMatchIdx < nextRoundMatches.length) {
-      const nextMatch = nextRoundMatches[nextMatchIdx];
-      if (matchPosInRound % 2 === 0) {
-        updates[`tournaments/${currentCode}/bracket/${nextMatch.matchIndex}/player1`] = winner;
+    // Find which bracket this match is in
+    let match, bracketKey;
+    for (const [key, arr] of Object.entries(allBrackets)) {
+      const found = arr.find(m => m.matchIndex === matchIndex);
+      if (found) { match = found; bracketKey = key; break; }
+    }
+    if (!match) return;
+
+    // Find the index within the bracket array
+    const bracketArr = allBrackets[bracketKey];
+    const arrIdx = bracketArr.indexOf(match);
+    updates[`tournaments/${currentCode}/${bracketKey}/${arrIdx}/winner`] = winner;
+
+    if (bracketKey === 'winners') {
+      // Advance winner in winners bracket
+      const roundMatches = bracketArr.filter(m => m.round === match.round);
+      const matchPos = roundMatches.indexOf(match);
+      const nextRoundMatches = bracketArr.filter(m => m.round === match.round + 1);
+
+      if (nextRoundMatches.length > 0) {
+        const nextMatchIdx = Math.floor(matchPos / 2);
+        if (nextMatchIdx < nextRoundMatches.length) {
+          const nextMatch = nextRoundMatches[nextMatchIdx];
+          const nextArrIdx = bracketArr.indexOf(nextMatch);
+          if (matchPos % 2 === 0) {
+            updates[`tournaments/${currentCode}/winners/${nextArrIdx}/player1`] = winner;
+          } else {
+            updates[`tournaments/${currentCode}/winners/${nextArrIdx}/player2`] = winner;
+          }
+        }
       } else {
-        updates[`tournaments/${currentCode}/bracket/${nextMatch.matchIndex}/player2`] = winner;
+        // Winner of WB Final goes to Grand Final as player1
+        if (allBrackets.grandFinal.length > 0) {
+          updates[`tournaments/${currentCode}/grandFinal/0/player1`] = winner;
+        }
+      }
+
+      // Drop loser to losers bracket
+      const loser = winner === match.player1 ? match.player2 : match.player1;
+      if (loser !== null && loser !== undefined) {
+        // Determine which LB round this loser drops into
+        // Loss in WB Round K feeds into LB Round (2K) for feed-in rounds
+        const lbFeedRound = match.round === 0 ? 0 : (2 * match.round - 1);
+        const lbRoundMatches = allBrackets.losers.filter(m => m.round === lbFeedRound);
+        // Find an empty slot in the LB feed-in round
+        for (let i = 0; i < lbRoundMatches.length; i++) {
+          const lbm = lbRoundMatches[i];
+          const lbArrIdx = allBrackets.losers.indexOf(lbm);
+          if (match.round === 0) {
+            // WB R0 losers are cross-seeded, already placed during generation
+            // But we should update if not yet placed
+            if (lbm.player1 === null) {
+              updates[`tournaments/${currentCode}/losers/${lbArrIdx}/player1`] = loser;
+              break;
+            } else if (lbm.player2 === null) {
+              updates[`tournaments/${currentCode}/losers/${lbArrIdx}/player2`] = loser;
+              break;
+            }
+          } else {
+            // For later WB rounds, place loser into available slot
+            if (lbm.player1 === null) {
+              updates[`tournaments/${currentCode}/losers/${lbArrIdx}/player1`] = loser;
+              break;
+            } else if (lbm.player2 === null) {
+              updates[`tournaments/${currentCode}/losers/${lbArrIdx}/player2`] = loser;
+              break;
+            }
+          }
+        }
+      }
+
+    } else if (bracketKey === 'losers') {
+      // Advance winner in losers bracket
+      const roundMatches = bracketArr.filter(m => m.round === match.round);
+      const matchPos = roundMatches.indexOf(match);
+      const nextRoundMatches = bracketArr.filter(m => m.round === match.round + 1);
+
+      if (nextRoundMatches.length > 0) {
+        const nextMatchIdx = Math.floor(matchPos / 2);
+        const actualIdx = Math.min(nextMatchIdx, nextRoundMatches.length - 1);
+        const nextMatch = nextRoundMatches[actualIdx];
+        const nextArrIdx = bracketArr.indexOf(nextMatch);
+
+        // For reduction rounds (even), both feeds come from previous round
+        // For feed-in rounds (odd), one slot comes from LB, other from WB drop
+        if (nextMatch.player1 === null) {
+          updates[`tournaments/${currentCode}/losers/${nextArrIdx}/player1`] = winner;
+        } else if (nextMatch.player2 === null) {
+          updates[`tournaments/${currentCode}/losers/${nextArrIdx}/player2`] = winner;
+        }
+      } else {
+        // Winner of LB Final goes to Grand Final as player2
+        if (allBrackets.grandFinal.length > 0) {
+          updates[`tournaments/${currentCode}/grandFinal/0/player2`] = winner;
+        }
+      }
+
+    } else if (bracketKey === 'grandFinal') {
+      if (match.label === 'Grand Final' || match.round === 0) {
+        if (winner === match.player1) {
+          // WB champion wins - tournament complete
+          updates[`tournaments/${currentCode}/status`] = 'complete';
+        } else {
+          // LB champion wins - trigger reset
+          updates[`tournaments/${currentCode}/grandFinal/1/player1`] = match.player1;
+          updates[`tournaments/${currentCode}/grandFinal/1/player2`] = match.player2;
+        }
+      } else {
+        // Reset match - tournament complete
+        updates[`tournaments/${currentCode}/status`] = 'complete';
       }
     }
-  }
 
-  const currentRoundMatches = bracket.filter(m => m.round === currentRound);
-  const allCurrentDone = currentRoundMatches.every(m => {
-    if (m.matchIndex === matchIndex) return true;
-    return m.winner !== null && m.winner !== undefined;
-  });
-  if (allCurrentDone && currentRound < totalRounds - 1) {
-    updates[`tournaments/${currentCode}/eliminationRound`] = currentRound + 1;
-  }
+    // Board reassignment: free the board that had this match, assign next ready match
+    await handleBoardReassignment(updates, d, matchIndex, format);
 
-  if (currentRound === totalRounds - 1) {
-    updates[`tournaments/${currentCode}/status`] = 'complete';
+  } else {
+    // Single elimination
+    const bracket = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket || {});
+
+    let bracketSize = 1;
+    while (bracketSize < players.length) bracketSize *= 2;
+    const totalRounds = Math.log2(bracketSize);
+
+    const match = bracket.find(m => m.matchIndex === matchIndex);
+    if (!match) return;
+
+    updates[`tournaments/${currentCode}/bracket/${matchIndex}/winner`] = winner;
+
+    const currentRound = match.round;
+    if (currentRound < totalRounds - 1) {
+      const roundMatches = bracket.filter(m => m.round === currentRound);
+      const matchPosInRound = roundMatches.indexOf(match);
+      const nextRoundMatches = bracket.filter(m => m.round === currentRound + 1);
+      const nextMatchIdx = Math.floor(matchPosInRound / 2);
+
+      if (nextMatchIdx < nextRoundMatches.length) {
+        const nextMatch = nextRoundMatches[nextMatchIdx];
+        if (matchPosInRound % 2 === 0) {
+          updates[`tournaments/${currentCode}/bracket/${nextMatch.matchIndex}/player1`] = winner;
+        } else {
+          updates[`tournaments/${currentCode}/bracket/${nextMatch.matchIndex}/player2`] = winner;
+        }
+      }
+    }
+
+    const currentRoundMatches = bracket.filter(m => m.round === currentRound);
+    const allCurrentDone = currentRoundMatches.every(m => {
+      if (m.matchIndex === matchIndex) return true;
+      return m.winner !== null && m.winner !== undefined;
+    });
+    if (allCurrentDone && currentRound < totalRounds - 1) {
+      updates[`tournaments/${currentCode}/eliminationRound`] = currentRound + 1;
+    }
+
+    if (currentRound === totalRounds - 1) {
+      updates[`tournaments/${currentCode}/status`] = 'complete';
+    }
+
+    // Board reassignment
+    await handleBoardReassignment(updates, d, matchIndex, format);
   }
 
   try {
@@ -2648,6 +2974,84 @@ async function submitEliminationResult(matchIndex, winner) {
     showToast('Error submitting result: ' + e.message, 'info');
   }
 }
+
+async function handleBoardReassignment(updates, d, completedMatchIndex, format) {
+  const boardState = d.boardState || {};
+  const numBoards = d.config.boards || 1;
+
+  // Find which board had this match
+  let completedBoard = null;
+  for (const [b, bs] of Object.entries(boardState)) {
+    if (bs && bs.matchIndex === completedMatchIndex) {
+      completedBoard = parseInt(b);
+      break;
+    }
+  }
+
+  if (completedBoard === null) return;
+
+  // Build the updated bracket state (including the updates we're about to make)
+  // For now, just clear the board and let the next render cycle assign new matches
+  // We simulate what the bracket will look like after this update
+  let allMatches;
+  if (format === 'double_elimination') {
+    allMatches = [
+      ...(Array.isArray(d.winners) ? d.winners : Object.values(d.winners || {})),
+      ...(Array.isArray(d.losers) ? d.losers : Object.values(d.losers || {})),
+      ...(Array.isArray(d.grandFinal) ? d.grandFinal : Object.values(d.grandFinal || {}))
+    ];
+  } else {
+    allMatches = Array.isArray(d.bracket) ? d.bracket : Object.values(d.bracket || {});
+  }
+
+  // Mark the completed match as having a winner (simulate)
+  const simBracket = allMatches.map(m => ({ ...m }));
+  const completedMatch = simBracket.find(m => m.matchIndex === completedMatchIndex);
+  if (completedMatch) completedMatch.winner = 'done'; // just mark as done
+
+  // Apply player advancements from updates to simulate state
+  for (const [key, val] of Object.entries(updates)) {
+    const parts = key.split('/');
+    // Look for player1/player2 assignments
+    if (parts.length >= 4 && (parts[parts.length - 1] === 'player1' || parts[parts.length - 1] === 'player2')) {
+      // Find the match being updated
+      const matchIdxStr = parts[parts.length - 2];
+      const bracketType = parts[2]; // 'bracket', 'winners', 'losers', 'grandFinal'
+      const idx = parseInt(matchIdxStr);
+
+      if (bracketType === 'bracket') {
+        const m = simBracket.find(m => m.matchIndex === idx);
+        if (m) {
+          if (parts[parts.length - 1] === 'player1') m.player1 = val;
+          else m.player2 = val;
+        }
+      }
+    }
+  }
+
+  // Find next ready match not already on a board
+  const assignedMatchIndices = new Set();
+  Object.entries(boardState).forEach(([b, bs]) => {
+    if (parseInt(b) !== completedBoard && bs && bs.matchIndex !== undefined && bs.matchIndex !== null) {
+      assignedMatchIndices.add(bs.matchIndex);
+    }
+  });
+
+  const readyMatches = simBracket.filter(m =>
+    m.player1 !== null && m.player1 !== undefined &&
+    m.player2 !== null && m.player2 !== undefined &&
+    (m.winner === null || m.winner === undefined) &&
+    !assignedMatchIndices.has(m.matchIndex) &&
+    m.matchIndex !== completedMatchIndex
+  );
+
+  if (readyMatches.length > 0) {
+    updates[`tournaments/${currentCode}/boardState/${completedBoard}`] = { matchIndex: readyMatches[0].matchIndex };
+  } else {
+    updates[`tournaments/${currentCode}/boardState/${completedBoard}`] = null;
+  }
+}
+
 window.submitEliminationResult = submitEliminationResult;
 
 // =====================================================
