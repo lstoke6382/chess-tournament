@@ -95,6 +95,15 @@
   }
   .lobby-player .lobby-num { color: var(--accent); font-size: 0.8rem; }
 
+  /* Delete tournament button */
+  .btn-delete-tourney {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 0.8rem;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    padding: 0; min-height: auto;
+  }
+  .btn-delete-tourney:hover { background: var(--loss); color: #fff; border-color: var(--loss); }
+
   /* ===== VIEWS ===== */
   .view { display: none; animation: fadeIn 0.35s ease; }
   .view.active { display: block; }
@@ -977,7 +986,6 @@ async function loadMyTournaments() {
     const snap = await get(ref(db, 'users/' + currentUid + '/tournaments'));
     if (!snap.exists() || Object.keys(snap.val()).length === 0) {
       section.style.display = 'none';
-      // Still show the nav dropdown but with empty state
       navWrap.style.display = 'block';
       navList.innerHTML = '<div class="nav-dropdown-empty">No tournaments yet</div>';
       return;
@@ -986,16 +994,28 @@ async function loadMyTournaments() {
     const codes = Object.keys(tournaments);
     codes.sort((a, b) => (tournaments[b].createdAt || 0) - (tournaments[a].createdAt || 0));
 
+    // Fetch live status for each tournament
+    const statusMap = {};
+    await Promise.all(codes.map(async (code) => {
+      try {
+        const tSnap = await get(ref(db, 'tournaments/' + code + '/status'));
+        statusMap[code] = tSnap.exists() ? tSnap.val() : 'unknown';
+      } catch (e) {
+        statusMap[code] = 'unknown';
+      }
+    }));
+
     // Populate navbar dropdown
     navWrap.style.display = 'block';
     navList.innerHTML = '';
     codes.forEach(code => {
       const t = tournaments[code];
+      const status = statusMap[code] || 'unknown';
       const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : 'Round Robin';
-      const date = t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '';
+      const statusLabel = status === 'registration' ? '🟡 Lobby' : status === 'active' ? '🟢 Active' : status === 'complete' ? '✓ Done' : '';
       const btn = document.createElement('button');
       btn.className = 'nav-dropdown-item';
-      btn.innerHTML = `<span class="tourney-name">${esc(t.name || 'Tournament')}</span><span class="tourney-meta">${code} &middot; ${formatLabel} &middot; ${t.playerCount || '?'} players &middot; ${date}</span>`;
+      btn.innerHTML = `<span class="tourney-name">${statusLabel} ${esc(t.name || 'Tournament')}</span><span class="tourney-meta">${code} &middot; ${formatLabel} &middot; ${t.playerCount || '?'} players</span>`;
       btn.onclick = () => {
         document.getElementById('navTourneysDropdown').style.display = 'none';
         isDirector = true;
@@ -1004,11 +1024,22 @@ async function loadMyTournaments() {
       navList.appendChild(btn);
     });
 
-    // Populate landing page section too
+    // Populate landing page section
     section.style.display = 'block';
     list.innerHTML = '';
-    codes.forEach(code => {
+
+    // Show lobbies first, then active, then completed
+    const order = ['registration', 'active', 'complete', 'unknown'];
+    const sorted = [...codes].sort((a, b) => {
+      const aOrder = order.indexOf(statusMap[a] || 'unknown');
+      const bOrder = order.indexOf(statusMap[b] || 'unknown');
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return (tournaments[b].createdAt || 0) - (tournaments[a].createdAt || 0);
+    });
+
+    sorted.forEach(code => {
       const t = tournaments[code];
+      const status = statusMap[code] || 'unknown';
       const card = document.createElement('div');
       card.className = 'card';
       card.style.cursor = 'pointer';
@@ -1017,10 +1048,22 @@ async function loadMyTournaments() {
       card.onmouseleave = () => card.style.borderColor = 'var(--border)';
       const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : 'Round Robin';
       const date = t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '';
+
+      let statusBadge = '';
+      if (status === 'registration') statusBadge = '<span style="background:#b8860b;color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">LOBBY</span>';
+      else if (status === 'active') statusBadge = '<span style="background:var(--accent);color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">ACTIVE</span>';
+      else if (status === 'complete') statusBadge = '<span style="background:var(--text-dim);color:var(--bg-primary);padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">COMPLETE</span>';
+
       card.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
-          <h3 style="font-size:1.1rem;margin:0;">${esc(t.name || 'Tournament')}</h3>
-          <span style="font-family:monospace;font-size:0.85rem;background:var(--bg-elevated);padding:2px 8px;border-radius:4px;letter-spacing:2px;">${code}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <h3 style="font-size:1.1rem;margin:0;">${esc(t.name || 'Tournament')}</h3>
+            ${statusBadge}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-family:monospace;font-size:0.85rem;background:var(--bg-elevated);padding:2px 8px;border-radius:4px;letter-spacing:2px;">${code}</span>
+            <button class="btn-delete-tourney" title="Delete" onclick="event.stopPropagation();deleteTournament('${code}')">&#10005;</button>
+          </div>
         </div>
         <div style="display:flex;gap:16px;font-size:0.85rem;color:var(--text-dim);">
           <span>${formatLabel}</span>
@@ -1037,6 +1080,18 @@ async function loadMyTournaments() {
     navList.innerHTML = '<div class="nav-dropdown-empty">No tournaments yet</div>';
   }
 }
+
+async function deleteTournament(code) {
+  if (!confirm('Delete this tournament from your list?')) return;
+  try {
+    await set(ref(db, 'users/' + currentUid + '/tournaments/' + code), null);
+    showToast('Tournament removed');
+    loadMyTournaments();
+  } catch (e) {
+    alert('Error deleting: ' + e.message);
+  }
+}
+window.deleteTournament = deleteTournament;
 
 // =====================================================
 // AUTH HANDLERS
