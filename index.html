@@ -1572,6 +1572,16 @@ function openTournament(code) {
     if (!snap.exists()) return;
     currentData = snap.val();
     isDirector = currentUid && currentData.directorUid === currentUid;
+    // Auto-save to user's tournament list if director
+    if (isDirector && currentUid) {
+      const cfg = currentData.config || {};
+      set(ref(db, 'users/' + currentUid + '/tournaments/' + code), {
+        name: cfg.name || 'Tournament',
+        createdAt: cfg.createdAt || Date.now(),
+        format: cfg.format || 'single',
+        playerCount: (cfg.players || []).length
+      }).catch(() => {});
+    }
     renderTournament();
     document.getElementById('tourneyLoading').style.display = 'none';
     document.querySelectorAll('#viewTournament .container > :not(#tourneyLoading):not(.loading-overlay)').forEach(el => {
