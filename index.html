@@ -493,13 +493,16 @@
     <p class="hero-subtitle">Create, manage, and share round-robin and elimination tournaments in real time. Professional tournament tracking for clubs, schools, and casual play.</p>
     <div class="hero-actions">
       <button class="btn-primary btn-lg" onclick="handleCreateClick()">&#9816; Create Tournament</button>
-      <button class="btn-outline btn-lg" style="border-width:2px;" onclick="document.getElementById('heroWatchInput').focus()">&#9820; Watch Tournament</button>
+      <button class="btn-outline btn-lg" style="border-width:2px;" onclick="toggleFindTournament()">&#9820; Find Tournament</button>
     </div>
-    <div class="hero-watch">
-      <input type="text" id="heroWatchInput" maxlength="6" placeholder="ABC123" autocomplete="off">
-      <button class="btn-secondary" onclick="watchTournament()">Join</button>
+    <div id="findTournamentBox" class="hero-watch" style="display:none;">
+      <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:8px;">Enter the 6-character tournament code</p>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <input type="text" id="heroWatchInput" maxlength="6" placeholder="ABC123" autocomplete="off" style="max-width:200px;">
+        <button class="btn-secondary" onclick="watchTournament()">Join</button>
+      </div>
+      <div id="heroWatchError" style="margin-top:8px;"></div>
     </div>
-    <div id="heroWatchError"></div>
   </section>
 
   <!-- Features -->
@@ -1476,6 +1479,17 @@ async function watchTournament() {
   openTournament(code);
 }
 window.watchTournament = watchTournament;
+
+function toggleFindTournament() {
+  const box = document.getElementById('findTournamentBox');
+  if (box.style.display === 'none') {
+    box.style.display = 'block';
+    document.getElementById('heroWatchInput').focus();
+  } else {
+    box.style.display = 'none';
+  }
+}
+window.toggleFindTournament = toggleFindTournament;
 
 // =====================================================
 // OPEN TOURNAMENT (subscribe to realtime)
