@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chess Tournament Manager</title>
+<title>Vienna Gambit Tournaments</title>
 <script src="https://js.stripe.com/v3/"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -374,7 +374,7 @@
   /* Standings Table */
   .standings-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: collapse; min-width: 480px; }
-  th { background: rgba(0,0,0,0.3); padding: 12px 14px; text-align: left; font-size: 0.82rem; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.5px; position: sticky; top: 60px; z-index: 10; }
+  th { background: var(--bg-elevated); padding: 12px 14px; text-align: left; font-size: 0.82rem; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.5px; position: sticky; top: 0; z-index: 10; }
   th:first-child { border-radius: var(--radius) 0 0 0; }
   th:last-child { border-radius: 0 var(--radius) 0 0; }
   td { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
@@ -433,13 +433,8 @@
   .sub-features li { padding: 8px 0; color: var(--text-dim); font-size: 0.95rem; display: flex; align-items: center; gap: 10px; }
   .sub-features li::before { content: '\2713'; color: var(--accent-light); font-weight: 700; font-size: 1.1rem; }
 
-  /* Tournament Dashboard Layout */
-  .tournament-dashboard { display: grid; grid-template-columns: 1fr; }
-  @media (min-width: 1024px) {
-    .tournament-dashboard { grid-template-columns: 3fr 2fr; gap: 24px; }
-    .tournament-dashboard .tab-bar { display: none; }
-    .tournament-dashboard .tab-panel { display: block !important; }
-  }
+  /* Tournament Dashboard Layout - tabs only */
+  .tournament-dashboard { }
 
   /* Utility */
   .mt-8 { margin-top: 8px; } .mt-16 { margin-top: 16px; } .mt-24 { margin-top: 24px; }
@@ -480,7 +475,7 @@
 
 <!-- ===== NAVBAR ===== -->
 <nav class="navbar">
-  <div class="nav-brand" onclick="goHome()">&#9812; Chess Tournament</div>
+  <div class="nav-brand" onclick="goHome()">&#9812; Vienna Gambit</div>
   <div class="nav-right" id="navRight">
     <button class="btn-nav btn-nav-accent" id="navSignInBtn" onclick="showAuthModal()" style="display:none;">Sign In</button>
     <span class="nav-user" id="navUserEmail" style="display:none;"></span>
@@ -493,7 +488,7 @@
   <!-- Hero -->
   <section class="hero hero-pattern">
     <div class="hero-icon">&#9812;</div>
-    <h1>Chess Tournament Manager</h1>
+    <h1>Vienna Gambit Tournaments</h1>
     <p class="hero-subtitle">Create, manage, and share round-robin and elimination tournaments in real time. Professional tournament tracking for clubs, schools, and casual play.</p>
     <div class="hero-actions">
       <button class="btn-primary btn-lg" onclick="handleCreateClick()">&#9816; Create Tournament</button>
@@ -552,9 +547,15 @@
     </div>
   </section>
 
+  <!-- My Tournaments (shown when logged in) -->
+  <section id="myTournamentsSection" class="container" style="display:none;">
+    <h2 class="section-title" style="text-align:left;">&#9816; My Tournaments</h2>
+    <div id="myTournamentsList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:16px;"></div>
+  </section>
+
   <!-- Footer -->
   <footer class="landing-footer">
-    <p>&#9812; Chess Tournament Manager &mdash; Built for tournament directors who take their game seriously.</p>
+    <p>&#9812; Vienna Gambit &mdash; A Stoked Bear Website</p>
   </footer>
 </div>
 
@@ -655,41 +656,37 @@
       <button class="tab-btn" onclick="switchTab('schedule',this)">&#128203; Schedule</button>
     </div>
 
-    <div class="tournament-dashboard">
-      <div>
-        <!-- Tab: Boards -->
-        <div id="tabBoards" class="tab-panel active">
-          <div class="boards-grid" id="boardsGrid"></div>
-          <div class="bracket-container" id="bracketContainer" style="display:none;"></div>
-        </div>
+    <!-- Tab: Boards -->
+    <div id="tabBoards" class="tab-panel active">
+      <div class="boards-grid" id="boardsGrid"></div>
+      <div class="bracket-container" id="bracketContainer" style="display:none;"></div>
+    </div>
 
-        <!-- Tab: Schedule -->
-        <div id="tabSchedule" class="tab-panel">
-          <div id="upcomingSection" class="card">
-            <h3 class="mb-8">Upcoming Games</h3>
-            <div id="upcomingList"></div>
-          </div>
-          <div class="card">
-            <div class="collapsible-header" onclick="toggleCollapsible(this)">
-              <span class="arrow">&#9654;</span>
-              <h3>Completed Games</h3>
-              <span id="completedCount" class="text-dim" style="margin-left:auto;font-size:0.85rem;"></span>
-            </div>
-            <div class="collapsible-body" id="completedList"></div>
-          </div>
+    <!-- Tab: Standings -->
+    <div id="tabStandings" class="tab-panel">
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="standings-wrap">
+          <table id="standingsTable">
+            <thead><tr><th>#</th><th>Player</th><th>Pts</th><th>W</th><th>D</th><th>L</th><th>Played</th></tr></thead>
+            <tbody id="standingsBody"></tbody>
+          </table>
         </div>
       </div>
+    </div>
 
-      <!-- Tab: Standings (always visible on desktop) -->
-      <div id="tabStandings" class="tab-panel">
-        <div class="card" style="padding:0;overflow:hidden;">
-          <div class="standings-wrap">
-            <table id="standingsTable">
-              <thead><tr><th>#</th><th>Player</th><th>Pts</th><th>W</th><th>D</th><th>L</th><th>Played</th></tr></thead>
-              <tbody id="standingsBody"></tbody>
-            </table>
-          </div>
+    <!-- Tab: Schedule -->
+    <div id="tabSchedule" class="tab-panel">
+      <div id="upcomingSection" class="card">
+        <h3 class="mb-8">Upcoming Games</h3>
+        <div id="upcomingList"></div>
+      </div>
+      <div class="card">
+        <div class="collapsible-header" onclick="toggleCollapsible(this)">
+          <span class="arrow">&#9654;</span>
+          <h3>Completed Games</h3>
+          <span id="completedCount" class="text-dim" style="margin-left:auto;font-size:0.85rem;"></span>
         </div>
+        <div class="collapsible-body" id="completedList"></div>
       </div>
     </div>
 
@@ -862,6 +859,62 @@ function updateNavbar() {
     signInBtn.style.display = 'inline-block';
     userEmail.style.display = 'none';
     signOutBtn.style.display = 'none';
+  }
+  loadMyTournaments();
+}
+
+// =====================================================
+// MY TOURNAMENTS
+// =====================================================
+async function loadMyTournaments() {
+  const section = document.getElementById('myTournamentsSection');
+  const list = document.getElementById('myTournamentsList');
+  if (!currentUser) {
+    section.style.display = 'none';
+    return;
+  }
+  try {
+    const snap = await get(ref(db, 'users/' + currentUid + '/tournaments'));
+    if (!snap.exists()) {
+      section.style.display = 'none';
+      return;
+    }
+    const tournaments = snap.val();
+    const codes = Object.keys(tournaments);
+    if (codes.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = 'block';
+    list.innerHTML = '';
+    // Sort by createdAt descending
+    codes.sort((a, b) => (tournaments[b].createdAt || 0) - (tournaments[a].createdAt || 0));
+    codes.forEach(code => {
+      const t = tournaments[code];
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.cursor = 'pointer';
+      card.style.transition = 'border-color 0.2s';
+      card.onmouseenter = () => card.style.borderColor = 'var(--accent)';
+      card.onmouseleave = () => card.style.borderColor = 'var(--border)';
+      const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : 'Round Robin';
+      const date = t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+          <h3 style="font-size:1.1rem;margin:0;">${esc(t.name || 'Tournament')}</h3>
+          <span style="font-family:monospace;font-size:0.85rem;background:var(--bg-elevated);padding:2px 8px;border-radius:4px;letter-spacing:2px;">${code}</span>
+        </div>
+        <div style="display:flex;gap:16px;font-size:0.85rem;color:var(--text-dim);">
+          <span>${formatLabel}</span>
+          <span>${t.playerCount || '?'} players</span>
+          <span>${date}</span>
+        </div>`;
+      card.onclick = () => { isDirector = true; openTournament(code); };
+      list.appendChild(card);
+    });
+  } catch (e) {
+    console.error('Error loading tournaments:', e);
+    section.style.display = 'none';
   }
 }
 
@@ -1382,6 +1435,15 @@ async function startTournament() {
 
   try {
     await set(ref(db, 'tournaments/' + code), tourneyData);
+    // Save to user's tournament list
+    if (currentUid) {
+      await set(ref(db, 'users/' + currentUid + '/tournaments/' + code), {
+        name: name,
+        createdAt: Date.now(),
+        format: format,
+        playerCount: players.length
+      });
+    }
     btn.disabled = false;
     btn.innerHTML = '&#9812; Start Tournament';
     isDirector = true;
