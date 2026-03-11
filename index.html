@@ -70,6 +70,23 @@
   }
   .btn-nav-accent:hover { background: var(--accent-light); border-color: var(--accent-light); }
 
+  /* Nav Dropdown */
+  .nav-dropdown {
+    position: absolute; top: 100%; right: 0; margin-top: 8px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg); min-width: 280px; max-height: 350px; overflow-y: auto;
+    z-index: 1001; padding: 8px;
+  }
+  .nav-dropdown-item {
+    display: block; width: 100%; padding: 10px 14px; border-radius: var(--radius);
+    cursor: pointer; border: none; background: transparent; color: var(--text);
+    text-align: left; font-family: inherit; font-size: 0.88rem; transition: background 0.15s;
+  }
+  .nav-dropdown-item:hover { background: var(--bg-elevated); }
+  .nav-dropdown-item .tourney-name { font-weight: 600; display: block; }
+  .nav-dropdown-item .tourney-meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
+  .nav-dropdown-empty { padding: 16px; text-align: center; color: var(--text-dim); font-size: 0.88rem; }
+
   /* ===== VIEWS ===== */
   .view { display: none; animation: fadeIn 0.35s ease; }
   .view.active { display: block; }
@@ -478,6 +495,12 @@
   <div class="nav-brand" onclick="goHome()">&#9812; Vienna Gambit</div>
   <div class="nav-center" style="position:absolute;left:50%;transform:translateX(-50%);font-size:0.75rem;color:var(--text-dim);letter-spacing:1.5px;text-transform:uppercase;">a <span style="font-weight:600;color:var(--text);">Stoked Bear</span> website</div>
   <div class="nav-right" id="navRight">
+    <div class="nav-dropdown-wrap" id="navTourneysWrap" style="display:none;position:relative;">
+      <button class="btn-nav" onclick="toggleTourneysDropdown()">&#9816; My Tournaments</button>
+      <div class="nav-dropdown" id="navTourneysDropdown" style="display:none;">
+        <div id="navTourneysList"></div>
+      </div>
+    </div>
     <button class="btn-nav btn-nav-accent" id="navSignInBtn" onclick="showAuthModal()" style="display:none;">Sign In</button>
     <span class="nav-user" id="navUserEmail" style="display:none;"></span>
     <button class="btn-nav" id="navSignOutBtn" onclick="handleSignOut()" style="display:none;">Sign Out</button>
@@ -873,26 +896,49 @@ function updateNavbar() {
 async function loadMyTournaments() {
   const section = document.getElementById('myTournamentsSection');
   const list = document.getElementById('myTournamentsList');
+  const navWrap = document.getElementById('navTourneysWrap');
+  const navList = document.getElementById('navTourneysList');
+
   if (!currentUser) {
     section.style.display = 'none';
+    navWrap.style.display = 'none';
     return;
   }
+
   try {
     const snap = await get(ref(db, 'users/' + currentUid + '/tournaments'));
-    if (!snap.exists()) {
+    if (!snap.exists() || Object.keys(snap.val()).length === 0) {
       section.style.display = 'none';
+      // Still show the nav dropdown but with empty state
+      navWrap.style.display = 'block';
+      navList.innerHTML = '<div class="nav-dropdown-empty">No tournaments yet</div>';
       return;
     }
     const tournaments = snap.val();
     const codes = Object.keys(tournaments);
-    if (codes.length === 0) {
-      section.style.display = 'none';
-      return;
-    }
+    codes.sort((a, b) => (tournaments[b].createdAt || 0) - (tournaments[a].createdAt || 0));
+
+    // Populate navbar dropdown
+    navWrap.style.display = 'block';
+    navList.innerHTML = '';
+    codes.forEach(code => {
+      const t = tournaments[code];
+      const formatLabel = t.format === 'double' ? 'Double RR' : t.format === 'elimination' ? 'Elimination' : 'Round Robin';
+      const date = t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '';
+      const btn = document.createElement('button');
+      btn.className = 'nav-dropdown-item';
+      btn.innerHTML = `<span class="tourney-name">${esc(t.name || 'Tournament')}</span><span class="tourney-meta">${code} &middot; ${formatLabel} &middot; ${t.playerCount || '?'} players &middot; ${date}</span>`;
+      btn.onclick = () => {
+        document.getElementById('navTourneysDropdown').style.display = 'none';
+        isDirector = true;
+        openTournament(code);
+      };
+      navList.appendChild(btn);
+    });
+
+    // Populate landing page section too
     section.style.display = 'block';
     list.innerHTML = '';
-    // Sort by createdAt descending
-    codes.sort((a, b) => (tournaments[b].createdAt || 0) - (tournaments[a].createdAt || 0));
     codes.forEach(code => {
       const t = tournaments[code];
       const card = document.createElement('div');
@@ -919,6 +965,8 @@ async function loadMyTournaments() {
   } catch (e) {
     console.error('Error loading tournaments:', e);
     section.style.display = 'none';
+    navWrap.style.display = 'block';
+    navList.innerHTML = '<div class="nav-dropdown-empty">No tournaments yet</div>';
   }
 }
 
@@ -1490,6 +1538,21 @@ function toggleFindTournament() {
   }
 }
 window.toggleFindTournament = toggleFindTournament;
+
+function toggleTourneysDropdown() {
+  const dd = document.getElementById('navTourneysDropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+window.toggleTourneysDropdown = toggleTourneysDropdown;
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('navTourneysWrap');
+  const dd = document.getElementById('navTourneysDropdown');
+  if (wrap && dd && !wrap.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
 
 // =====================================================
 // OPEN TOURNAMENT (subscribe to realtime)
