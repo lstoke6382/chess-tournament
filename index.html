@@ -743,7 +743,11 @@
           <button class="btn-primary btn-lg" onclick="joinLobby()">&#9816; Join Tournament</button>
         </div>
         <div id="lobbyAlreadyJoined" style="display:none;margin-bottom:16px;">
-          <p style="color:var(--accent);">&#10003; You're registered!</p>
+          <p style="color:var(--accent);font-weight:600;">&#10003; You're registered! Waiting for the director to start.</p>
+        </div>
+        <div id="lobbySignInSection" style="display:none;margin-bottom:16px;">
+          <p class="text-dim" style="margin-bottom:12px;">Sign in to join this tournament</p>
+          <button class="btn-primary btn-lg" onclick="pendingAction='joinlobby';showAuthModal()">&#9816; Sign In to Join</button>
         </div>
         <div id="lobbyStartSection" style="display:none;">
           <p id="lobbyStartError" class="validation-msg" style="display:none;"></p>
@@ -943,6 +947,14 @@ onAuthStateChanged(auth, async (user) => {
       pendingAction = null;
       hideAuthModal();
       handleCreateClick();
+    } else if (pendingAction === 'joinlobby') {
+      pendingAction = null;
+      hideAuthModal();
+      // Re-render lobby so join button appears, then auto-join
+      if (currentData && currentData.status === 'registration') {
+        renderLobby();
+        joinLobby();
+      }
     }
   } else {
     isSubscribed = false;
@@ -1941,35 +1953,36 @@ function renderLobby() {
   const max = (d.config || {}).maxPlayers || 20;
   countEl.textContent = `${playerEntries.length} player${playerEntries.length !== 1 ? 's' : ''} registered (max ${max})`;
 
-  // Show join button for signed-in non-directors who haven't joined
+  // Show join/start buttons based on auth state
   const joinSection = document.getElementById('lobbyJoinSection');
   const alreadyJoined = document.getElementById('lobbyAlreadyJoined');
   const startSection = document.getElementById('lobbyStartSection');
+  const signInSection = document.getElementById('lobbySignInSection');
 
-  if (isDirector) {
+  const hasJoined = currentUid && registered[currentUid];
+  const atMax = playerEntries.length >= max;
+
+  // Everyone who is signed in can join (including director)
+  if (!currentUser) {
+    // Not signed in — show sign in prompt
     joinSection.style.display = 'none';
     alreadyJoined.style.display = 'none';
-    startSection.style.display = 'block';
-  } else if (currentUid && registered[currentUid]) {
+    startSection.style.display = 'none';
+    signInSection.style.display = 'block';
+  } else if (hasJoined) {
+    // Already joined
     joinSection.style.display = 'none';
     alreadyJoined.style.display = 'block';
-    startSection.style.display = 'none';
-  } else if (currentUser) {
-    const atMax = playerEntries.length >= max;
+    signInSection.style.display = 'none';
+    // Director also sees start button
+    startSection.style.display = isDirector ? 'block' : 'none';
+  } else {
+    // Signed in but not joined yet
     joinSection.style.display = atMax ? 'none' : 'block';
     alreadyJoined.style.display = 'none';
-    startSection.style.display = 'none';
-  } else {
-    joinSection.style.display = 'none';
-    alreadyJoined.style.display = 'none';
-    startSection.style.display = 'none';
-    // Show sign-in prompt for guests
-    if (playerEntries.length > 0) {
-      const prompt = document.createElement('p');
-      prompt.className = 'text-dim';
-      prompt.innerHTML = '<a href="#" onclick="showAuthModal();return false;">Sign in</a> to join this tournament';
-      listEl.appendChild(prompt);
-    }
+    signInSection.style.display = 'none';
+    // Director also sees start button
+    startSection.style.display = isDirector ? 'block' : 'none';
   }
 }
 
