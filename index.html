@@ -730,6 +730,7 @@ let currentData = null;
 let isDirector = false;
 let unsubscribe = null;
 let isSubscribed = false;
+const PAYMENTS_ENABLED = false; // Set to true to enable subscription paywall
 let pendingAction = null; // 'create' if user was trying to create before auth
 
 // =====================================================
@@ -948,12 +949,13 @@ async function handleCreateClick() {
     return;
   }
 
-  // Refresh subscription status
-  await refreshSubscriptionStatus();
-
-  if (!isSubscribed) {
-    showSubModal();
-    return;
+  // Subscription check (disabled when PAYMENTS_ENABLED is false)
+  if (PAYMENTS_ENABLED) {
+    await refreshSubscriptionStatus();
+    if (!isSubscribed) {
+      showSubModal();
+      return;
+    }
   }
 
   showView('setup');
