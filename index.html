@@ -87,6 +87,14 @@
   .nav-dropdown-item .tourney-meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
   .nav-dropdown-empty { padding: 16px; text-align: center; color: var(--text-dim); font-size: 0.88rem; }
 
+  /* Lobby */
+  .lobby-player {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg-elevated); padding: 8px 16px; border-radius: 20px;
+    margin: 4px; font-weight: 600; font-size: 0.9rem;
+  }
+  .lobby-player .lobby-num { color: var(--accent); font-size: 0.8rem; }
+
   /* ===== VIEWS ===== */
   .view { display: none; animation: fadeIn 0.35s ease; }
   .view.active { display: block; }
@@ -603,10 +611,27 @@
         <input type="text" id="timeControl" placeholder="e.g. G/15+10, 5|0 Blitz" maxlength="40">
       </div>
       <div class="field-group">
+        <label>Player Entry Mode</label>
+        <div class="radio-group" style="margin-top:8px;">
+          <label><input type="radio" name="entryMode" value="manual" checked onchange="toggleEntryMode()"> Manual Entry</label>
+          <label><input type="radio" name="entryMode" value="open" onchange="toggleEntryMode()"> Open Registration (players join with code)</label>
+        </div>
+      </div>
+      <div id="manualEntrySection" class="field-group">
         <label>Players</label>
         <div id="playerList"></div>
         <button class="btn-small btn-secondary mt-8" onclick="addPlayerField()">+ Add Player</button>
         <p id="playerCountLabel" class="text-dim mt-8" style="font-size:0.85rem;"></p>
+      </div>
+      <div id="openEntrySection" class="field-group" style="display:none;">
+        <label>Min / Max Players</label>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <input type="number" id="minPlayers" value="4" min="4" max="20" style="width:80px;text-align:center;">
+          <span class="text-dim">to</span>
+          <input type="number" id="maxPlayers" value="20" min="4" max="20" style="width:80px;text-align:center;">
+          <span class="text-dim">players</span>
+        </div>
+        <p class="text-dim mt-8" style="font-size:0.85rem;">Players will sign in and join using the tournament code. You start when ready.</p>
       </div>
       <div class="setup-row">
         <div class="field-group">
@@ -635,6 +660,9 @@
       <p id="setupError" class="validation-msg" style="display:none;"></p>
       <button id="startBtn" class="btn-primary mt-16" style="width:100%;font-size:1.05rem;padding:16px;" onclick="startTournament()">
         &#9812; Start Tournament
+      </button>
+      <button id="lobbyBtn" class="btn-primary mt-16" style="width:100%;font-size:1.05rem;padding:16px;display:none;" onclick="createLobby()">
+        &#9816; Create Lobby
       </button>
     </div>
   </div>
@@ -677,6 +705,28 @@
       <span class="round-detail" id="roundInfoDetail"></span>
     </div>
 
+    <!-- LOBBY (registration mode) -->
+    <div id="lobbySection" style="display:none;">
+      <div class="card" style="text-align:center;padding:32px;">
+        <div style="font-size:2.5rem;margin-bottom:12px;">&#9816;</div>
+        <h3 style="margin-bottom:4px;">Waiting for Players</h3>
+        <p class="text-dim mb-16">Share the code above — players sign in and join below</p>
+        <div id="lobbyPlayerList" style="margin-bottom:24px;"></div>
+        <p class="text-dim mb-16" id="lobbyPlayerCount">0 players registered</p>
+        <div id="lobbyJoinSection" style="display:none;margin-bottom:16px;">
+          <button class="btn-primary btn-lg" onclick="joinLobby()">&#9816; Join Tournament</button>
+        </div>
+        <div id="lobbyAlreadyJoined" style="display:none;margin-bottom:16px;">
+          <p style="color:var(--accent);">&#10003; You're registered!</p>
+        </div>
+        <div id="lobbyStartSection" style="display:none;">
+          <p id="lobbyStartError" class="validation-msg" style="display:none;"></p>
+          <button id="lobbyStartBtn" class="btn-primary btn-lg" style="width:100%;" onclick="startFromLobby()">&#9812; Start Tournament</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="activeSection">
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('boards',this)">&#9816; Boards</button>
       <button class="tab-btn" onclick="switchTab('standings',this)">&#127942; Standings</button>
@@ -717,6 +767,7 @@
       </div>
     </div>
 
+    </div><!-- end activeSection -->
     <div id="tourneyLoading" class="loading-overlay"><span class="spinner"></span> Loading tournament...</div>
   </div>
 </div>
@@ -1539,6 +1590,168 @@ function toggleFindTournament() {
 }
 window.toggleFindTournament = toggleFindTournament;
 
+// =====================================================
+// ENTRY MODE TOGGLE
+// =====================================================
+function toggleEntryMode() {
+  const mode = document.querySelector('input[name="entryMode"]:checked').value;
+  document.getElementById('manualEntrySection').style.display = mode === 'manual' ? 'block' : 'none';
+  document.getElementById('openEntrySection').style.display = mode === 'open' ? 'block' : 'none';
+  document.getElementById('startBtn').style.display = mode === 'manual' ? 'block' : 'none';
+  document.getElementById('lobbyBtn').style.display = mode === 'open' ? 'block' : 'none';
+  updatePreview();
+}
+window.toggleEntryMode = toggleEntryMode;
+
+// =====================================================
+// CREATE LOBBY (Open Registration)
+// =====================================================
+async function createLobby() {
+  const errEl = document.getElementById('setupError');
+  errEl.style.display = 'none';
+
+  const name = document.getElementById('tourneyName').value.trim();
+  if (!name) { errEl.textContent = 'Please enter a tournament name.'; errEl.style.display = 'block'; return; }
+  if (!currentUid) { errEl.textContent = 'Please sign in first.'; errEl.style.display = 'block'; return; }
+
+  const boards = parseInt(document.getElementById('boardCount').value);
+  const format = getFormat();
+  const timeControl = document.getElementById('timeControl').value.trim();
+  const minPlayers = parseInt(document.getElementById('minPlayers').value) || 4;
+  const maxPlayers = parseInt(document.getElementById('maxPlayers').value) || 20;
+
+  const btn = document.getElementById('lobbyBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creating...';
+
+  let code = generateCode();
+  const snap = await get(ref(db, 'tournaments/' + code));
+  if (snap.exists()) code = generateCode();
+
+  const lobbyData = {
+    directorUid: currentUid,
+    config: {
+      name, format, boards, timeControl,
+      minPlayers, maxPlayers,
+      createdAt: Date.now()
+    },
+    registeredPlayers: {},
+    status: 'registration'
+  };
+
+  try {
+    await set(ref(db, 'tournaments/' + code), lobbyData);
+    if (currentUid) {
+      await set(ref(db, 'users/' + currentUid + '/tournaments/' + code), {
+        name, createdAt: Date.now(), format, playerCount: 0
+      }).catch(() => {});
+    }
+    btn.disabled = false;
+    btn.innerHTML = '&#9816; Create Lobby';
+    isDirector = true;
+    openTournament(code);
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '&#9816; Create Lobby';
+    errEl.textContent = 'Error creating lobby: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+window.createLobby = createLobby;
+
+// =====================================================
+// JOIN LOBBY
+// =====================================================
+async function joinLobby() {
+  if (!currentUser || !currentCode || !currentData) return;
+  const displayName = currentUser.displayName || currentUser.email || 'Player';
+  try {
+    await set(ref(db, 'tournaments/' + currentCode + '/registeredPlayers/' + currentUid), {
+      name: displayName,
+      joinedAt: Date.now()
+    });
+    showToast('You joined the tournament!');
+  } catch (e) {
+    alert('Error joining: ' + e.message);
+  }
+}
+window.joinLobby = joinLobby;
+
+// =====================================================
+// START FROM LOBBY
+// =====================================================
+async function startFromLobby() {
+  if (!isDirector || !currentCode || !currentData) return;
+  const errEl = document.getElementById('lobbyStartError');
+  errEl.style.display = 'none';
+
+  const registered = currentData.registeredPlayers || {};
+  const playerEntries = Object.values(registered);
+  const minPlayers = (currentData.config || {}).minPlayers || 4;
+
+  if (playerEntries.length < minPlayers) {
+    errEl.textContent = `Need at least ${minPlayers} players. Currently ${playerEntries.length}.`;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const players = playerEntries
+    .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
+    .map(p => p.name);
+
+  const format = currentData.config.format || 'single';
+  const boards = currentData.config.boards || 1;
+  const isDouble = format === 'double';
+  const isElimination = format === 'elimination';
+
+  let updates = {};
+  updates[`tournaments/${currentCode}/config/players`] = players;
+  updates[`tournaments/${currentCode}/status`] = 'active';
+  updates[`tournaments/${currentCode}/results`] = {};
+
+  if (isElimination) {
+    const bracket = generateBracket(players.length);
+    updates[`tournaments/${currentCode}/bracket`] = bracket;
+    updates[`tournaments/${currentCode}/eliminationRound`] = 0;
+  } else {
+    const schedule = generateSchedule(players.length, isDouble);
+    const scheduleObj = {};
+    schedule.forEach((g, i) => { scheduleObj[i] = g; });
+    updates[`tournaments/${currentCode}/schedule`] = scheduleObj;
+
+    const boardState = {};
+    let nextGameIndex = 0;
+    for (let b = 0; b < boards; b++) {
+      if (nextGameIndex < schedule.length) {
+        boardState[b] = { gameIndex: nextGameIndex };
+        nextGameIndex++;
+      } else {
+        boardState[b] = null;
+      }
+    }
+    updates[`tournaments/${currentCode}/boardState`] = boardState;
+    updates[`tournaments/${currentCode}/nextGameIndex`] = nextGameIndex;
+  }
+
+  const btn = document.getElementById('lobbyStartBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Starting...';
+
+  try {
+    await update(ref(db), updates);
+    // Update user tournament list with player count
+    if (currentUid) {
+      await set(ref(db, 'users/' + currentUid + '/tournaments/' + currentCode + '/playerCount'), players.length).catch(() => {});
+    }
+    showToast('Tournament started!');
+  } catch (e) {
+    alert('Error starting tournament: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '&#9812; Start Tournament';
+}
+window.startFromLobby = startFromLobby;
+
 function toggleTourneysDropdown() {
   const dd = document.getElementById('navTourneysDropdown');
   dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
@@ -1602,10 +1815,62 @@ window.leaveTournament = leaveTournament;
 // =====================================================
 // RENDER TOURNAMENT
 // =====================================================
+function renderLobby() {
+  const d = currentData;
+  const registered = d.registeredPlayers || {};
+  const playerEntries = Object.entries(registered).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
+  const listEl = document.getElementById('lobbyPlayerList');
+  const countEl = document.getElementById('lobbyPlayerCount');
+
+  listEl.innerHTML = '';
+  if (playerEntries.length === 0) {
+    listEl.innerHTML = '<p class="text-dim" style="font-style:italic;">No players yet — share the code!</p>';
+  } else {
+    playerEntries.forEach(([uid, p], i) => {
+      const span = document.createElement('span');
+      span.className = 'lobby-player';
+      span.innerHTML = `<span class="lobby-num">${i + 1}</span> ${esc(p.name)}`;
+      listEl.appendChild(span);
+    });
+  }
+  const max = (d.config || {}).maxPlayers || 20;
+  countEl.textContent = `${playerEntries.length} player${playerEntries.length !== 1 ? 's' : ''} registered (max ${max})`;
+
+  // Show join button for signed-in non-directors who haven't joined
+  const joinSection = document.getElementById('lobbyJoinSection');
+  const alreadyJoined = document.getElementById('lobbyAlreadyJoined');
+  const startSection = document.getElementById('lobbyStartSection');
+
+  if (isDirector) {
+    joinSection.style.display = 'none';
+    alreadyJoined.style.display = 'none';
+    startSection.style.display = 'block';
+  } else if (currentUid && registered[currentUid]) {
+    joinSection.style.display = 'none';
+    alreadyJoined.style.display = 'block';
+    startSection.style.display = 'none';
+  } else if (currentUser) {
+    const atMax = playerEntries.length >= max;
+    joinSection.style.display = atMax ? 'none' : 'block';
+    alreadyJoined.style.display = 'none';
+    startSection.style.display = 'none';
+  } else {
+    joinSection.style.display = 'none';
+    alreadyJoined.style.display = 'none';
+    startSection.style.display = 'none';
+    // Show sign-in prompt for guests
+    if (playerEntries.length > 0) {
+      const prompt = document.createElement('p');
+      prompt.className = 'text-dim';
+      prompt.innerHTML = '<a href="#" onclick="showAuthModal();return false;">Sign in</a> to join this tournament';
+      listEl.appendChild(prompt);
+    }
+  }
+}
+
 function renderTournament() {
   const d = currentData;
   const cfg = d.config;
-  const players = cfg.players;
   const format = cfg.format || 'single';
 
   document.getElementById('tName').textContent = cfg.name;
@@ -1623,6 +1888,20 @@ function renderTournament() {
   if (isDirector) { badge.textContent = 'Director'; badge.className = 'role-badge role-director'; }
   else { badge.textContent = 'Spectator'; badge.className = 'role-badge role-spectator'; }
 
+  // Handle registration/lobby state
+  const lobbySection = document.getElementById('lobbySection');
+  const activeSection = document.getElementById('activeSection');
+  if (d.status === 'registration') {
+    lobbySection.style.display = 'block';
+    activeSection.style.display = 'none';
+    renderLobby();
+    return;
+  } else {
+    lobbySection.style.display = 'none';
+    activeSection.style.display = 'block';
+  }
+
+  const players = cfg.players;
   const isComplete = d.status === 'complete';
   document.getElementById('completeBanner').style.display = isComplete ? 'block' : 'none';
 
